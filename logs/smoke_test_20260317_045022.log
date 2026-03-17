@@ -1,0 +1,13 @@
+2026-03-17 04:50:22 | ERROR | Smoke test failed: Real mode requires ATH executable. Set paths.ath_executable in config/local_paths.yaml.
+Traceback (most recent call last):
+  File "E:\pythonGATH\scripts\smoke_test.py", line 48, in main
+    result = evaluate_individual(
+        individual=candidate,
+    ...<3 lines>...
+        case_tag=case_tag,
+    )
+  File "E:\pythonGATH\src\waveguide_opt\full_optimization_loop.py", line 42, in evaluate_individual
+    mesh_result = build_mesh(params=individual, config=config, mode=mode, case_name=case_tag, logger=logger)
+  File "E:\pythonGATH\src\waveguide_opt\mesh_pipeline.py", line 72, in build_mesh
+    raise RuntimeError("Real mode requires ATH executable. Set paths.ath_executable in config/local_paths.yaml.")
+RuntimeError: Real mode requires ATH executable. Set paths.ath_executable in config/local_paths.yaml.

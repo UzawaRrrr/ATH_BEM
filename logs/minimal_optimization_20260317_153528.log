@@ -1,0 +1,23 @@
+2026-03-17 15:35:28 | INFO | Starting minimal optimization in mode=mock
+2026-03-17 15:35:28 | INFO | GA parameter setup source=E:\pythonGATH\config\geometry_params.yaml enabled=length,throat_radius,mouth_radius,flare disabled=
+2026-03-17 15:35:28 | INFO | case=ga_eval_0001_1773732928 candidate={"flare": 0.8687425501125279, "length": 0.3629821834139958, "mouth_radius": 0.10500586367382386, "throat_radius": 0.011000430208906677}
+2026-03-17 15:35:28 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0001_1773732928.msh
+2026-03-17 15:35:28 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0001_1773732928_observations.csv
+2026-03-17 15:35:28 | INFO | score case=ga_eval_0001_1773732928 J=49.1858 E_in=48.8467 E_out=34.5281 E_bw=120.2729 E_smooth=24.7452 E_eff=0.1821 E_mfg=0.0274
+2026-03-17 15:35:28 | INFO | case=ga_eval_0001_1773732928 fitness=-49.185792 total_error=49.185792
+2026-03-17 15:35:28 | INFO | case=ga_eval_0002_1773732928 candidate={"flare": 0.582571548521774, "length": 0.3998590613823247, "mouth_radius": 0.2284359135409691, "throat_radius": 0.03706797949691645}
+2026-03-17 15:35:28 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0002_1773732928.msh
+2026-03-17 15:35:28 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0002_1773732928_observations.csv
+2026-03-17 15:35:28 | INFO | score case=ga_eval_0002_1773732928 J=74.6636 E_in=58.3533 E_out=44.9256 E_bw=242.3183 E_smooth=29.8163 E_eff=0.0244 E_mfg=0.0953
+2026-03-17 15:35:28 | INFO | case=ga_eval_0002_1773732928 fitness=-74.663573 total_error=74.663573
+2026-03-17 15:35:28 | INFO | case=ga_eval_0003_1773732928 candidate={"flare": 1.4612461050170609, "length": 0.2803302914804028, "mouth_radius": 0.09372759496072068, "throat_radius": 0.011191888777522814}
+2026-03-17 15:35:28 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0003_1773732928.msh
+2026-03-17 15:35:28 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0003_1773732928_observations.csv
+2026-03-17 15:35:28 | INFO | score case=ga_eval_0003_1773732928 J=18.5268 E_in=29.9262 E_out=18.0046 E_bw=2.4906 E_smooth=15.4807 E_eff=0.1305 E_mfg=0.0171
+2026-03-17 15:35:28 | INFO | case=ga_eval_0003_1773732928 fitness=-18.526839 total_error=18.526839
+2026-03-17 15:35:28 | INFO | case=ga_eval_0004_1773732928 candidate={"flare": 1.544377109266755, "length": 0.1300836684798682, "mouth_radius": 0.17997688755590463, "throat_radius": 0.01795350602746594}
+2026-03-17 15:35:28 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0004_1773732928.msh
+2026-03-17 15:35:28 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0004_1773732928_observations.csv
+2026-03-17 15:35:28 | INFO | score case=ga_eval_0004_1773732928 J=5.4813 E_in=7.2174 E_out=7.2934 E_bw=0.2418 E_smooth=7.1797 E_eff=0.1915 E_mfg=0.0296
+2026-03-17 15:35:28 | INFO | case=ga_eval_0004_1773732928 fitness=-5.481283 total_error=5.481283
+2026-03-17 15:35:28 | INFO | Minimal optimization finished. Result stored at E:\pythonGATH\outputs\minimal_optimization_result.json

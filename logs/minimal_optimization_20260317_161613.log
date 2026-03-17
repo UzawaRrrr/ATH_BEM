@@ -1,0 +1,253 @@
+2026-03-17 16:16:13 | INFO | Starting minimal optimization in mode=mock
+2026-03-17 16:16:13 | INFO | GA parameter setup source=E:\pythonGATH\outputs\runs\20260317_161613_minimal_optimization\config\geometry_params.yaml enabled=length,mouth_radius,flare disabled=throat_radius
+2026-03-17 16:16:13 | INFO | case=ga_eval_0001_1773735373 candidate={"flare": 0.9775615685751505, "length": 0.3629821834139958, "mouth_radius": 0.05875376432793343, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0001_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0001_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0001_1773735373 J=47.5565 E_in=41.2763 E_out=55.1249 E_bw=85.6382 E_smooth=33.2423 E_eff=0.0000 E_mfg=0.0124
+2026-03-17 16:16:13 | INFO | case=ga_eval_0001_1773735373 fitness=-47.556457 total_error=47.556457
+2026-03-17 16:16:13 | INFO | case=ga_eval_0002_1773735373 candidate={"flare": 1.821068923588114, "length": 0.20482008049655265, "mouth_radius": 0.3077649249574044, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0002_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0002_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0002_1773735373 J=14.0328 E_in=12.1796 E_out=23.0484 E_bw=7.5685 E_smooth=15.9209 E_eff=0.2025 E_mfg=6.0996
+2026-03-17 16:16:13 | INFO | case=ga_eval_0002_1773735373 fitness=-14.032785 total_error=14.032785
+2026-03-17 16:16:13 | INFO | case=ga_eval_0003_1773735373 candidate={"flare": 1.286035821339068, "length": 0.45902823572784124, "mouth_radius": 0.08042859142029565, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0003_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0003_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0003_1773735373 J=46.1510 E_in=59.2752 E_out=60.1590 E_bw=16.5503 E_smooth=38.2104 E_eff=0.0000 E_mfg=0.0019
+2026-03-17 16:16:13 | INFO | case=ga_eval_0003_1773735373 fitness=-46.150954 total_error=46.150954
+2026-03-17 16:16:13 | INFO | case=ga_eval_0004_1773735373 candidate={"flare": 1.4612461050170609, "length": 0.13132294338646672, "mouth_radius": 0.12652329118126118, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0004_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0004_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0004_1773735373 J=8.1511 E_in=4.0795 E_out=18.4976 E_bw=2.4906 E_smooth=11.9066 E_eff=0.0052 E_mfg=0.0171
+2026-03-17 16:16:13 | INFO | case=ga_eval_0004_1773735373 fitness=-8.151101 total_error=8.151101
+2026-03-17 16:16:13 | INFO | case=ga_eval_0005_1773735373 candidate={"flare": 1.764757319336999, "length": 0.1300836684798682, "mouth_radius": 0.11959317774032698, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0005_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0005_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0005_1773735373 J=7.5398 E_in=3.9266 E_out=15.8409 E_bw=4.5518 E_smooth=10.5910 E_eff=0.0125 E_mfg=0.0797
+2026-03-17 16:16:13 | INFO | case=ga_eval_0005_1773735373 fitness=-7.539845 total_error=7.539845
+2026-03-17 16:16:13 | INFO | case=ga_eval_0006_1773735373 candidate={"flare": 1.764757319336999, "length": 0.1300836684798682, "mouth_radius": 0.11959317774032698, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0006_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0006_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0006_1773735373 J=7.5398 E_in=3.9266 E_out=15.8409 E_bw=4.5518 E_smooth=10.5910 E_eff=0.0125 E_mfg=0.0797
+2026-03-17 16:16:13 | INFO | case=ga_eval_0006_1773735373 fitness=-7.539845 total_error=7.539845
+2026-03-17 16:16:13 | INFO | case=ga_eval_0007_1773735373 candidate={"flare": 1.4612461050170609, "length": 0.13132294338646672, "mouth_radius": 0.12652329118126118, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0007_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0007_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0007_1773735373 J=8.1511 E_in=4.0795 E_out=18.4976 E_bw=2.4906 E_smooth=11.9066 E_eff=0.0052 E_mfg=0.0171
+2026-03-17 16:16:13 | INFO | case=ga_eval_0007_1773735373 fitness=-8.151101 total_error=8.151101
+2026-03-17 16:16:13 | INFO | case=ga_eval_0008_1773735373 candidate={"flare": 1.6149452870341727, "length": 0.13256263158955162, "mouth_radius": 0.10591095043952962, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0008_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0008_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0008_1773735373 J=7.4428 E_in=4.1470 E_out=17.3024 E_bw=0.1500 E_smooth=11.3722 E_eff=0.0000 E_mfg=0.0430
+2026-03-17 16:16:13 | INFO | case=ga_eval_0008_1773735373 fitness=-7.442765 total_error=7.442765
+2026-03-17 16:16:13 | INFO | case=ga_eval_0009_1773735373 candidate={"flare": 1.9015110131216408, "length": 0.1444121239905343, "mouth_radius": 0.10432121031024931, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0009_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0009_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0009_1773735373 J=9.4127 E_in=5.0992 E_out=16.2197 E_bw=12.9565 E_smooth=11.1001 E_eff=0.0489 E_mfg=0.1230
+2026-03-17 16:16:13 | INFO | case=ga_eval_0009_1773735373 fitness=-9.412671 total_error=9.412671
+2026-03-17 16:16:13 | INFO | case=ga_eval_0010_1773735373 candidate={"flare": 1.4576034963525348, "length": 0.12, "mouth_radius": 0.1053817539394051, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0010_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0010_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0010_1773735373 J=7.4120 E_in=3.2170 E_out=17.2514 E_bw=2.6474 E_smooth=11.0369 E_eff=0.0000 E_mfg=0.0166
+2026-03-17 16:16:13 | INFO | case=ga_eval_0010_1773735373 fitness=-7.412018 total_error=7.412018
+2026-03-17 16:16:13 | INFO | case=ga_eval_0011_1773735373 candidate={"flare": 1.4576034963525348, "length": 0.12, "mouth_radius": 0.1053817539394051, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0011_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0011_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0011_1773735373 J=7.4120 E_in=3.2170 E_out=17.2514 E_bw=2.6474 E_smooth=11.0369 E_eff=0.0000 E_mfg=0.0166
+2026-03-17 16:16:13 | INFO | case=ga_eval_0011_1773735373 fitness=-7.412018 total_error=7.412018
+2026-03-17 16:16:13 | INFO | case=ga_eval_0012_1773735373 candidate={"flare": 1.6149452870341727, "length": 0.13256263158955162, "mouth_radius": 0.10591095043952962, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0012_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0012_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0012_1773735373 J=7.4428 E_in=4.1470 E_out=17.3024 E_bw=0.1500 E_smooth=11.3722 E_eff=0.0000 E_mfg=0.0430
+2026-03-17 16:16:13 | INFO | case=ga_eval_0012_1773735373 fitness=-7.442765 total_error=7.442765
+2026-03-17 16:16:13 | INFO | case=ga_eval_0013_1773735373 candidate={"flare": 1.5310793677450687, "length": 0.12, "mouth_radius": 0.12772623661714064, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0013_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0013_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0013_1773735373 J=6.8807 E_in=3.2127 E_out=16.6358 E_bw=0.4379 E_smooth=10.7462 E_eff=0.0091 E_mfg=0.0274
+2026-03-17 16:16:13 | INFO | case=ga_eval_0013_1773735373 fitness=-6.880659 total_error=6.880659
+2026-03-17 16:16:13 | INFO | case=ga_eval_0014_1773735373 candidate={"flare": 1.4050792264430843, "length": 0.12, "mouth_radius": 0.12338737445621697, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0014_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0014_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0014_1773735373 J=7.9881 E_in=3.2213 E_out=17.7049 E_bw=5.5012 E_smooth=11.2473 E_eff=0.0014 E_mfg=0.0105
+2026-03-17 16:16:13 | INFO | case=ga_eval_0014_1773735373 fitness=-7.988140 total_error=7.988140
+2026-03-17 16:16:13 | INFO | case=ga_eval_0015_1773735373 candidate={"flare": 1.9323091090194833, "length": 0.20875866045426084, "mouth_radius": 0.09541322511979511, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0015_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0015_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0015_1773735373 J=14.8373 E_in=12.6008 E_out=22.3523 E_bw=15.3218 E_smooth=15.6765 E_eff=0.0497 E_mfg=0.1341
+2026-03-17 16:16:13 | INFO | case=ga_eval_0015_1773735373 fitness=-14.837300 total_error=14.837300
+2026-03-17 16:16:13 | INFO | case=ga_eval_0016_1773735373 candidate={"flare": 1.5310793677450687, "length": 0.12, "mouth_radius": 0.12772623661714064, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0016_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0016_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0016_1773735373 J=6.8807 E_in=3.2127 E_out=16.6358 E_bw=0.4379 E_smooth=10.7462 E_eff=0.0091 E_mfg=0.0274
+2026-03-17 16:16:13 | INFO | case=ga_eval_0016_1773735373 fitness=-6.880659 total_error=6.880659
+2026-03-17 16:16:13 | INFO | case=ga_eval_0017_1773735373 candidate={"flare": 1.4576034963525348, "length": 0.12, "mouth_radius": 0.1053817539394051, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0017_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0017_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0017_1773735373 J=7.4120 E_in=3.2170 E_out=17.2514 E_bw=2.6474 E_smooth=11.0369 E_eff=0.0000 E_mfg=0.0166
+2026-03-17 16:16:13 | INFO | case=ga_eval_0017_1773735373 fitness=-7.412018 total_error=7.412018
+2026-03-17 16:16:13 | INFO | case=ga_eval_0018_1773735373 candidate={"flare": 1.514997606885022, "length": 0.1524132868849438, "mouth_radius": 0.1114861294029963, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0018_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0018_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0018_1773735373 J=9.3076 E_in=6.0306 E_out=20.3814 E_bw=0.7556 E_smooth=13.3278 E_eff=0.0000 E_mfg=0.0248
+2026-03-17 16:16:13 | INFO | case=ga_eval_0018_1773735373 fitness=-9.307624 total_error=9.307624
+2026-03-17 16:16:13 | INFO | case=ga_eval_0019_1773735373 candidate={"flare": 1.5731999547480893, "length": 0.14599794265074714, "mouth_radius": 0.07883676336885435, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0019_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0019_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0019_1773735373 J=8.5157 E_in=5.3608 E_out=19.1274 E_bw=0.0164 E_smooth=12.5766 E_eff=0.0020 E_mfg=0.0348
+2026-03-17 16:16:13 | INFO | case=ga_eval_0019_1773735373 fitness=-8.515703 total_error=8.515703
+2026-03-17 16:16:13 | INFO | case=ga_eval_0020_1773735373 candidate={"flare": 1.615708412884229, "length": 0.12, "mouth_radius": 0.21958264342981854, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0020_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0020_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0020_1773735373 J=6.7976 E_in=3.2104 E_out=15.9539 E_bw=0.1572 E_smooth=10.4164 E_eff=0.1999 E_mfg=3.4577
+2026-03-17 16:16:13 | INFO | case=ga_eval_0020_1773735373 fitness=-6.797594 total_error=6.797594
+2026-03-17 16:16:13 | INFO | case=ga_eval_0021_1773735373 candidate={"flare": 1.615708412884229, "length": 0.12, "mouth_radius": 0.21958264342981854, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0021_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0021_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0021_1773735373 J=6.7976 E_in=3.2104 E_out=15.9539 E_bw=0.1572 E_smooth=10.4164 E_eff=0.1999 E_mfg=3.4577
+2026-03-17 16:16:13 | INFO | case=ga_eval_0021_1773735373 fitness=-6.797594 total_error=6.797594
+2026-03-17 16:16:13 | INFO | case=ga_eval_0022_1773735373 candidate={"flare": 1.5310793677450687, "length": 0.12, "mouth_radius": 0.12772623661714064, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0022_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0022_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0022_1773735373 J=6.8807 E_in=3.2127 E_out=16.6358 E_bw=0.4379 E_smooth=10.7462 E_eff=0.0091 E_mfg=0.0274
+2026-03-17 16:16:13 | INFO | case=ga_eval_0022_1773735373 fitness=-6.880659 total_error=6.880659
+2026-03-17 16:16:13 | INFO | case=ga_eval_0023_1773735373 candidate={"flare": 1.4978534872602234, "length": 0.15385404001296044, "mouth_radius": 0.19122295789431681, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0023_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0023_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0023_1773735373 J=9.5537 E_in=6.1902 E_out=20.7082 E_bw=1.1941 E_smooth=13.5164 E_eff=0.1820 E_mfg=0.0222
+2026-03-17 16:16:13 | INFO | case=ga_eval_0023_1773735373 fitness=-9.553673 total_error=9.553673
+2026-03-17 16:16:13 | INFO | case=ga_eval_0024_1773735373 candidate={"flare": 1.3700700861020663, "length": 0.12, "mouth_radius": 0.07565999390263928, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0024_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0024_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0024_1773735373 J=8.4719 E_in=3.2248 E_out=18.0134 E_bw=8.0547 E_smooth=11.3887 E_eff=0.0000 E_mfg=0.0072
+2026-03-17 16:16:13 | INFO | case=ga_eval_0024_1773735373 fitness=-8.471930 total_error=8.471930
+2026-03-17 16:16:13 | INFO | case=ga_eval_0025_1773735373 candidate={"flare": 1.2012898864136377, "length": 0.12, "mouth_radius": 0.11798808338019068, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0025_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0025_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0025_1773735373 J=12.1196 E_in=3.2479 E_out=19.5724 E_bw=28.9634 E_smooth=12.0837 E_eff=0.0000 E_mfg=0.0000
+2026-03-17 16:16:13 | INFO | case=ga_eval_0025_1773735373 fitness=-12.119571 total_error=12.119571
+2026-03-17 16:16:13 | INFO | case=ga_eval_0026_1773735373 candidate={"flare": 1.615708412884229, "length": 0.12, "mouth_radius": 0.21958264342981854, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0026_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0026_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0026_1773735373 J=6.7976 E_in=3.2104 E_out=15.9539 E_bw=0.1572 E_smooth=10.4164 E_eff=0.1999 E_mfg=3.4577
+2026-03-17 16:16:13 | INFO | case=ga_eval_0026_1773735373 fitness=-6.797594 total_error=6.797594
+2026-03-17 16:16:13 | INFO | case=ga_eval_0027_1773735373 candidate={"flare": 1.5310793677450687, "length": 0.12, "mouth_radius": 0.12772623661714064, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0027_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0027_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0027_1773735373 J=6.8807 E_in=3.2127 E_out=16.6358 E_bw=0.4379 E_smooth=10.7462 E_eff=0.0091 E_mfg=0.0274
+2026-03-17 16:16:13 | INFO | case=ga_eval_0027_1773735373 fitness=-6.880659 total_error=6.880659
+2026-03-17 16:16:13 | INFO | case=ga_eval_0028_1773735373 candidate={"flare": 1.636241445814851, "length": 0.12, "mouth_radius": 0.20683384177468564, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0028_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0028_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0028_1773735373 J=6.7076 E_in=3.2102 E_out=15.7928 E_bw=0.4162 E_smooth=10.3373 E_eff=0.1959 E_mfg=1.9319
+2026-03-17 16:16:13 | INFO | case=ga_eval_0028_1773735373 fitness=-6.707605 total_error=6.707605
+2026-03-17 16:16:13 | INFO | case=ga_eval_0029_1773735373 candidate={"flare": 1.5806395960933455, "length": 0.12, "mouth_radius": 0.2827759240998646, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0029_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0029_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0029_1773735373 J=7.6060 E_in=3.2110 E_out=16.2329 E_bw=0.0012 E_smooth=10.5524 E_eff=0.2025 E_mfg=18.2763
+2026-03-17 16:16:13 | INFO | case=ga_eval_0029_1773735373 fitness=-7.606034 total_error=7.606034
+2026-03-17 16:16:13 | INFO | case=ga_eval_0030_1773735373 candidate={"flare": 1.8722751641653268, "length": 0.12, "mouth_radius": 0.15559554815511936, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0030_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0030_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0030_1773735373 J=7.6208 E_in=3.2197 E_out=14.0641 E_bw=10.8611 E_smooth=9.4507 E_eff=0.1262 E_mfg=0.1130
+2026-03-17 16:16:13 | INFO | case=ga_eval_0030_1773735373 fitness=-7.620781 total_error=7.620781
+2026-03-17 16:16:13 | INFO | case=ga_eval_0031_1773735373 candidate={"flare": 1.636241445814851, "length": 0.12, "mouth_radius": 0.20683384177468564, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0031_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0031_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0031_1773735373 J=6.7076 E_in=3.2102 E_out=15.7928 E_bw=0.4162 E_smooth=10.3373 E_eff=0.1959 E_mfg=1.9319
+2026-03-17 16:16:13 | INFO | case=ga_eval_0031_1773735373 fitness=-6.707605 total_error=6.707605
+2026-03-17 16:16:13 | INFO | case=ga_eval_0032_1773735373 candidate={"flare": 1.615708412884229, "length": 0.12, "mouth_radius": 0.21958264342981854, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0032_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0032_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0032_1773735373 J=6.7976 E_in=3.2104 E_out=15.9539 E_bw=0.1572 E_smooth=10.4164 E_eff=0.1999 E_mfg=3.4577
+2026-03-17 16:16:13 | INFO | case=ga_eval_0032_1773735373 fitness=-6.797594 total_error=6.797594
+2026-03-17 16:16:13 | INFO | case=ga_eval_0033_1773735373 candidate={"flare": 1.5866150554949756, "length": 0.12, "mouth_radius": 0.15974641121570274, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0033_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0033_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0033_1773735373 J=6.6740 E_in=3.2109 E_out=16.1850 E_bw=0.0015 E_smooth=10.5292 E_eff=0.1123 E_mfg=0.0374
+2026-03-17 16:16:13 | INFO | case=ga_eval_0033_1773735373 fitness=-6.674027 total_error=6.674027
+2026-03-17 16:16:13 | INFO | case=ga_eval_0034_1773735373 candidate={"flare": 1.4850321085335525, "length": 0.12, "mouth_radius": 0.26042336685487905, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0034_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0034_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0034_1773735373 J=7.7585 E_in=3.2152 E_out=17.0191 E_bw=1.5913 E_smooth=10.9279 E_eff=0.2024 E_mfg=11.4307
+2026-03-17 16:16:13 | INFO | case=ga_eval_0034_1773735373 fitness=-7.758531 total_error=7.758531
+2026-03-17 16:16:13 | INFO | case=ga_eval_0035_1773735373 candidate={"flare": 1.6305875985700358, "length": 0.12860872947922067, "mouth_radius": 0.2744321623939996, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0035_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0035_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0035_1773735373 J=7.7152 E_in=3.8299 E_out=16.7501 E_bw=0.3329 E_smooth=11.0091 E_eff=0.2025 E_mfg=10.9545
+2026-03-17 16:16:13 | INFO | case=ga_eval_0035_1773735373 fitness=-7.715209 total_error=7.715209
+2026-03-17 16:16:13 | INFO | case=ga_eval_0036_1773735373 candidate={"flare": 1.5866150554949756, "length": 0.12, "mouth_radius": 0.15974641121570274, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0036_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0036_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0036_1773735373 J=6.6740 E_in=3.2109 E_out=16.1850 E_bw=0.0015 E_smooth=10.5292 E_eff=0.1123 E_mfg=0.0374
+2026-03-17 16:16:13 | INFO | case=ga_eval_0036_1773735373 fitness=-6.674027 total_error=6.674027
+2026-03-17 16:16:13 | INFO | case=ga_eval_0037_1773735373 candidate={"flare": 1.636241445814851, "length": 0.12, "mouth_radius": 0.20683384177468564, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0037_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0037_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0037_1773735373 J=6.7076 E_in=3.2102 E_out=15.7928 E_bw=0.4162 E_smooth=10.3373 E_eff=0.1959 E_mfg=1.9319
+2026-03-17 16:16:13 | INFO | case=ga_eval_0037_1773735373 fitness=-6.707605 total_error=6.707605
+2026-03-17 16:16:13 | INFO | case=ga_eval_0038_1773735373 candidate={"flare": 1.3262869915330855, "length": 0.12, "mouth_radius": 0.15723450340767053, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0038_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0038_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0038_1773735373 J=9.2033 E_in=3.2297 E_out=18.4062 E_bw=12.0435 E_smooth=11.5669 E_eff=0.0895 E_mfg=0.0040
+2026-03-17 16:16:13 | INFO | case=ga_eval_0038_1773735373 fitness=-9.203303 total_error=9.203303
+2026-03-17 16:16:13 | INFO | case=ga_eval_0039_1773735373 candidate={"flare": 1.7638305949816107, "length": 0.12432917062845564, "mouth_radius": 0.19023443455218733, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0039_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0039_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0039_1773735373 J=7.1936 E_in=3.5041 E_out=15.2657 E_bw=4.5078 E_smooth=10.1704 E_eff=0.1860 E_mfg=0.3638
+2026-03-17 16:16:13 | INFO | case=ga_eval_0039_1773735373 fitness=-7.193560 total_error=7.193560
+2026-03-17 16:16:13 | INFO | case=ga_eval_0040_1773735373 candidate={"flare": 1.479732036984979, "length": 0.1372121088565068, "mouth_radius": 0.20525132984090697, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0040_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0040_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0040_1773735373 J=8.4323 E_in=4.5802 E_out=18.9966 E_bw=1.7732 E_smooth=12.2904 E_eff=0.1941 E_mfg=0.2200
+2026-03-17 16:16:13 | INFO | case=ga_eval_0040_1773735373 fitness=-8.432263 total_error=8.432263
+2026-03-17 16:16:13 | INFO | case=ga_eval_0041_1773735373 candidate={"flare": 1.5866150554949756, "length": 0.12, "mouth_radius": 0.15974641121570274, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0041_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0041_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0041_1773735373 J=6.6740 E_in=3.2109 E_out=16.1850 E_bw=0.0015 E_smooth=10.5292 E_eff=0.1123 E_mfg=0.0374
+2026-03-17 16:16:13 | INFO | case=ga_eval_0041_1773735373 fitness=-6.674027 total_error=6.674027
+2026-03-17 16:16:13 | INFO | case=ga_eval_0042_1773735373 candidate={"flare": 1.636241445814851, "length": 0.12, "mouth_radius": 0.20683384177468564, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0042_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0042_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0042_1773735373 J=6.7076 E_in=3.2102 E_out=15.7928 E_bw=0.4162 E_smooth=10.3373 E_eff=0.1959 E_mfg=1.9319
+2026-03-17 16:16:13 | INFO | case=ga_eval_0042_1773735373 fitness=-6.707605 total_error=6.707605
+2026-03-17 16:16:13 | INFO | case=ga_eval_0043_1773735373 candidate={"flare": 1.8005199011951534, "length": 0.13987193230207642, "mouth_radius": 0.1755776686192166, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0043_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0043_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0043_1773735373 J=8.3854 E_in=4.7228 E_out=16.5539 E_bw=6.3910 E_smooth=11.1722 E_eff=0.1672 E_mfg=0.0902
+2026-03-17 16:16:13 | INFO | case=ga_eval_0043_1773735373 fitness=-8.385433 total_error=8.385433
+2026-03-17 16:16:13 | INFO | case=ga_eval_0044_1773735373 candidate={"flare": 1.6791405965945103, "length": 0.12, "mouth_radius": 0.17117482891637167, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0044_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0044_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0044_1773735373 J=6.6419 E_in=3.2104 E_out=15.4618 E_bw=1.3333 E_smooth=10.1729 E_eff=0.1516 E_mfg=0.0593
+2026-03-17 16:16:13 | INFO | case=ga_eval_0044_1773735373 fitness=-6.641864 total_error=6.641864
+2026-03-17 16:16:13 | INFO | case=ga_eval_0045_1773735373 candidate={"flare": 1.5141497326476896, "length": 0.12155695587082671, "mouth_radius": 0.17691792539817341, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0045_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0045_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0045_1773735373 J=7.0866 E_in=3.3217 E_out=16.9474 E_bw=0.7748 E_smooth=10.9328 E_eff=0.1578 E_mfg=0.0581
+2026-03-17 16:16:13 | INFO | case=ga_eval_0045_1773735373 fitness=-7.086574 total_error=7.086574
+2026-03-17 16:16:13 | INFO | case=ga_eval_0046_1773735373 candidate={"flare": 1.6791405965945103, "length": 0.12, "mouth_radius": 0.17117482891637167, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0046_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0046_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0046_1773735373 J=6.6419 E_in=3.2104 E_out=15.4618 E_bw=1.3333 E_smooth=10.1729 E_eff=0.1516 E_mfg=0.0593
+2026-03-17 16:16:13 | INFO | case=ga_eval_0046_1773735373 fitness=-6.641864 total_error=6.641864
+2026-03-17 16:16:13 | INFO | case=ga_eval_0047_1773735373 candidate={"flare": 1.5866150554949756, "length": 0.12, "mouth_radius": 0.15974641121570274, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0047_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0047_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0047_1773735373 J=6.6740 E_in=3.2109 E_out=16.1850 E_bw=0.0015 E_smooth=10.5292 E_eff=0.1123 E_mfg=0.0374
+2026-03-17 16:16:13 | INFO | case=ga_eval_0047_1773735373 fitness=-6.674027 total_error=6.674027
+2026-03-17 16:16:13 | INFO | case=ga_eval_0048_1773735373 candidate={"flare": 1.9465487111838533, "length": 0.12, "mouth_radius": 0.20063168839354822, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0048_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0048_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0048_1773735373 J=8.3720 E_in=3.2271 E_out=13.5668 E_bw=16.4676 E_smooth=9.1806 E_eff=0.1961 E_mfg=1.4425
+2026-03-17 16:16:13 | INFO | case=ga_eval_0048_1773735373 fitness=-8.372000 total_error=8.372000
+2026-03-17 16:16:13 | INFO | case=ga_eval_0049_1773735373 candidate={"flare": 1.512433698290832, "length": 0.12, "mouth_radius": 0.1586354634917762, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0049_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0049_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0049_1773735373 J=6.9920 E_in=3.2136 E_out=16.7900 E_bw=0.8145 E_smooth=10.8195 E_eff=0.1034 E_mfg=0.0244
+2026-03-17 16:16:13 | INFO | case=ga_eval_0049_1773735373 fitness=-6.991980 total_error=6.991980
+2026-03-17 16:16:13 | INFO | case=ga_eval_0050_1773735373 candidate={"flare": 1.2696133985088336, "length": 0.12, "mouth_radius": 0.15741874096649527, "throat_radius": 0.02}
+2026-03-17 16:16:13 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0050_1773735373.msh
+2026-03-17 16:16:13 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0050_1773735373_observations.csv
+2026-03-17 16:16:13 | INFO | score case=ga_eval_0050_1773735373 J=10.3625 E_in=3.2372 E_out=18.9262 E_bw=18.6351 E_smooth=11.7997 E_eff=0.0890 E_mfg=0.0012
+2026-03-17 16:16:13 | INFO | case=ga_eval_0050_1773735373 fitness=-10.362516 total_error=10.362516
+2026-03-17 16:16:13 | INFO | Minimal optimization finished. Result stored at E:\pythonGATH\outputs\minimal_optimization_result.json

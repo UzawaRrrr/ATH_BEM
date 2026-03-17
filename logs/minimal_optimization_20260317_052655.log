@@ -1,0 +1,182 @@
+2026-03-17 05:26:55 | INFO | Starting minimal optimization in mode=mock
+2026-03-17 05:26:55 | INFO | Starting minimal optimization in mode=real
+2026-03-17 05:26:55 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0001_1773696415.msh
+2026-03-17 05:26:55 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0001_1773696415_observations.csv
+2026-03-17 05:26:55 | INFO | score case=ga_eval_0001_1773696415 coverage=48.4258 uniformity=1.6838 spill=76.6680 beam_target=30.0682 beam_stability=0.0000 contrast=0.0000 efficiency=0.0000 matching=0.1821 geometry=0.0165
+2026-03-17 05:26:55 | INFO | case=ga_eval_0001_1773696415 fitness=-185.565217 total_error=185.565217
+2026-03-17 05:26:55 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0002_1773696415.msh
+2026-03-17 05:26:55 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0002_1773696415_observations.csv
+2026-03-17 05:26:55 | INFO | score case=ga_eval_0002_1773696415 coverage=58.0220 uniformity=1.3252 spill=92.6403 beam_target=60.5796 beam_stability=0.0000 contrast=0.0000 efficiency=0.0000 matching=0.0244 geometry=0.0572
+2026-03-17 05:26:55 | INFO | case=ga_eval_0002_1773696415 fitness=-240.215947 total_error=240.215947
+2026-03-17 05:26:55 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0003_1773696415.msh
+2026-03-17 05:26:55 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0003_1773696415_observations.csv
+2026-03-17 05:26:55 | INFO | score case=ga_eval_0003_1773696415 coverage=29.2855 uniformity=2.5628 spill=50.3120 beam_target=0.6227 beam_stability=0.0000 contrast=0.0000 efficiency=0.0000 matching=0.1305 geometry=0.0102
+2026-03-17 05:26:55 | INFO | case=ga_eval_0003_1773696415 fitness=-106.783284 total_error=106.783284
+2026-03-17 05:26:55 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0004_1773696415.msh
+2026-03-17 05:26:55 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0004_1773696415_observations.csv
+2026-03-17 05:26:55 | INFO | score case=ga_eval_0004_1773696415 coverage=6.5422 uniformity=2.7008 spill=30.7095 beam_target=0.0605 beam_stability=0.0000 contrast=0.0000 efficiency=0.0000 matching=0.1915 geometry=0.0199
+2026-03-17 05:26:55 | INFO | case=ga_eval_0004_1773696415 fitness=-54.353714 total_error=54.353714
+2026-03-17 05:26:55 | INFO | Minimal optimization finished. Result stored at E:\pythonGATH\outputs\minimal_optimization_result.json
+2026-03-17 05:26:55 | INFO | ATH check command rc=0
+2026-03-17 05:26:55 | INFO | ATH stdout: Ath V2025-06
+Usage: ath <horn_definition_file>
+2026-03-17 05:26:55 | INFO | Gmsh command rc=0
+2026-03-17 05:26:55 | INFO | Gmsh stdout: Info    : Running 'C:\Users\UZAWAR\AppData\Local\Microsoft\WinGet\Packages\gmsh.gmsh_Microsoft.Winget.Source_8wekyb3d8bbwe\gmsh-4.13.1-Windows64\gmsh.EXE E:\pythonGATH\outputs\tmp\ga_eval_0001_1773696415.geo -3 -o E:\pythonGATH\outputs\mesh\ga_eval_0001_1773696415.msh' [Gmsh 4.13.1, 1 node, max. 1 thread]
+Info    : Started on Tue Mar 17 05:26:55 2026
+Info    : Reading 'E:\pythonGATH\outputs\tmp\ga_eval_0001_1773696415.geo'...
+Info    : Done reading 'E:\pythonGATH\outputs\tmp\ga_eval_0001_1773696415.geo'
+Info    : Meshing 1D...
+Info    : [  0%] Meshing curve 1 (Line)
+Info    : [ 10%] Meshing curve 2 (Line)
+Info    : [ 20%] Meshing curve 3 (Line)
+Info    : [ 30%] Meshing curve 4 (Line)
+Info    : [ 40%] Meshing curve 6 (Line)
+Info    : [ 50%] Meshing curve 7 (Line)
+Info    : [ 60%] Meshing curve 8 (Line)
+Info    : [ 60%] Meshing curve 9 (Line)
+Info    : [ 70%] Meshing curve 11 (Line)
+Info    : [ 80%] Meshing curve 12 (Line)
+Info    : [ 90%] Meshing curve 16 (Line)
+Info    : [100%] Meshing curve 20 (Line)
+Info    : Done meshing 1D (Wall 0.000955343s, CPU 0s)
+Info    : Meshing 2D...
+Info    : [  0%] Meshing surface 1 (Plane, Frontal-Delaunay)
+Info    : [ 20%] Meshing surface 13 (Surface, Frontal-Delaunay)
+Info    : [ 40%] Meshing surface 17 (Surface, Frontal-Delaunay)
+Info    : [ 60%] Meshing surface 21 (Surface, Frontal-Delaunay)
+Info    : [ 70%] Meshing surface 25 (Surface, Frontal-Delaunay)
+Info    : [ 90%] Meshing surface 26 (Plane, Frontal-Delaunay)
+Info    : Done meshing 2D (Wall 0.00890708s, CPU 0s)
+Info    : Meshing 3D...
+Info    : 3D Meshing 1 volume with 1 connected component
+Info    : Tetrahedrizing 497 nodes...
+Info    : Done tetrahedrizing 505 nodes (Wall 0.0030601s, CPU 0s)
+Info    : Reconstructing mesh...
+Info    :  - Creating surface mesh
+Info    :  - Identifying boundary edges
+Info    :  - Recovering boundary
+Info    :  - Added 1 Steiner point
+Info    : Done reconstructing mesh (Wall 0.00816584s, CPU 0s)
+Info    : Found volume 1
+Info    : It. 0 - 0 nodes created - worst tet radius 1.19456 (nodes removed 0 0)
+Info    : 3D refinement terminated (499 nodes total):
+Info    :  - 0 Delaunay cavities modified for star shapeness
+Info    :  - 2 nodes could not be inserted
+Info    :  - 1316 tetrahedra created in 0.000118017 sec. (11150917 tets/s)
+Info    : 2 node relocations
+Info    : Done meshing 3D (Wall 0.0152462s, CPU 0s)
+Info    : Optimizing mesh...
+Info    : Optimizing volume 1
+Info    : Optimization starts (volume = 0.000231594) with worst = 0.22738 / average = 0.726929:
+Info    : 0.00 < quality < 0.10 :         0 elements
+Info    : 0.10 < quality < 0.20 :         0 elements
+Info    : 0.20 < quality < 0.30 :         1 elements
+Info    : 0.30 < quality < 0.40 :         7 elements
+Info    : 0.40 < quality < 0.50 :        29 elements
+Info    : 0.50 < quality < 0.60 :       187 elements
+Info    : 0.60 < quality < 0.70 :       156 elements
+Info    : 0.70 < quality < 0.80 :       494 elements
+Info    : 0.80 < quality < 0.90 :       437 elements
+Info    : 0.90 < quality < 1.00 :         5 elements
+Info    : 1 edge swaps, 1 node relocations (volume = 0.000231594): worst = 0.270212 / average = 0.726975 (Wall 0.000627041s, CPU 0s)
+Info    : 2 edge swaps, 2 node relocations (volume = 0.000231594): worst = 0.270212 / average = 0.726975 (Wall 0.000828981s, CPU 0s)
+Info    : No ill-shaped tets in the mesh :-)
+Info    : 0.00 < quality < 0.10 :         0 elements
+Info    : 0.10 < quality < 0.20 :         0 elements
+Info    : 0.20 < quality < 0.30 :         0 elements
+Info    : 0.30 < quality < 0.40 :         6 elements
+Info    : 0.40 < quality < 0.50 :        28 elements
+Info    : 0.50 < quality < 0.60 :       189 elements
+Info    : 0.60 < quality < 0.70 :       156 elements
+Info    : 0.70 < quality < 0.80 :       497 elements
+Info    : 0.80 < quality < 0.90 :       432 elements
+Info    : 0.90 < quality < 1.00 :         5 elements
+Info    : Done optimizing mesh (Wall 0.00218892s, CPU 0s)
+Info    : 499 nodes 2460 elements
+Info    : Writing 'E:\pythonGATH\outputs\mesh\ga_eval_0001_1773696415.msh'...
+Info    : Done writing 'E:\pythonGATH\outputs\mesh\ga_eval_0001_1773696415.msh'
+Info    : Stopped on Tue Mar 17 05:26:55 2026 (From start: Wall 0.0329738s, CPU 0s)
+2026-03-17 05:26:56 | INFO | Real-mode placeholder solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0001_1773696415_observations.csv
+2026-03-17 05:26:56 | INFO | score case=ga_eval_0001_1773696415 coverage=48.4258 uniformity=1.6838 spill=76.6680 beam_target=30.0682 beam_stability=0.0000 contrast=0.0000 efficiency=0.0000 matching=0.1821 geometry=0.0165
+2026-03-17 05:26:56 | INFO | case=ga_eval_0001_1773696415 fitness=-185.565217 total_error=185.565217
+2026-03-17 05:26:56 | INFO | ATH check command rc=0
+2026-03-17 05:26:56 | INFO | ATH stdout: Ath V2025-06
+Usage: ath <horn_definition_file>
+2026-03-17 05:26:56 | INFO | Gmsh command rc=0
+2026-03-17 05:26:56 | INFO | Gmsh stdout: Info    : Running 'C:\Users\UZAWAR\AppData\Local\Microsoft\WinGet\Packages\gmsh.gmsh_Microsoft.Winget.Source_8wekyb3d8bbwe\gmsh-4.13.1-Windows64\gmsh.EXE E:\pythonGATH\outputs\tmp\ga_eval_0002_1773696416.geo -3 -o E:\pythonGATH\outputs\mesh\ga_eval_0002_1773696416.msh' [Gmsh 4.13.1, 1 node, max. 1 thread]
+Info    : Started on Tue Mar 17 05:26:56 2026
+Info    : Reading 'E:\pythonGATH\outputs\tmp\ga_eval_0002_1773696416.geo'...
+Info    : Done reading 'E:\pythonGATH\outputs\tmp\ga_eval_0002_1773696416.geo'
+Info    : Meshing 1D...
+Info    : [  0%] Meshing curve 1 (Line)
+Info    : [ 10%] Meshing curve 2 (Line)
+Info    : [ 20%] Meshing curve 3 (Line)
+Info    : [ 30%] Meshing curve 4 (Line)
+Info    : [ 40%] Meshing curve 6 (Line)
+Info    : [ 50%] Meshing curve 7 (Line)
+Info    : [ 60%] Meshing curve 8 (Line)
+Info    : [ 60%] Meshing curve 9 (Line)
+Info    : [ 70%] Meshing curve 11 (Line)
+Info    : [ 80%] Meshing curve 12 (Line)
+Info    : [ 90%] Meshing curve 16 (Line)
+Info    : [100%] Meshing curve 20 (Line)
+Info    : Done meshing 1D (Wall 0.000891924s, CPU 0s)
+Info    : Meshing 2D...
+Info    : [  0%] Meshing surface 1 (Plane, Frontal-Delaunay)
+Info    : [ 20%] Meshing surface 13 (Surface, Frontal-Delaunay)
+Info    : [ 40%] Meshing surface 17 (Surface, Frontal-Delaunay)
+Info    : [ 60%] Meshing surface 21 (Surface, Frontal-Delaunay)
+Info    : [ 70%] Meshing surface 25 (Surface, Frontal-Delaunay)
+Info    : [ 90%] Meshing surface 26 (Plane, Frontal-Delaunay)
+Info    : Done meshing 2D (Wall 0.02177s, CPU 0s)
+Info    : Meshing 3D...
+Info    : 3D Meshing 1 volume with 1 connected component
+Info    : Tetrahedrizing 1095 nodes...
+Info    : Done tetrahedrizing 1103 nodes (Wall 0.00815201s, CPU 0s)
+Info    : Reconstructing mesh...
+Info    :  - Creating surface mesh
+Info    :  - Identifying boundary edges
+Info    :  - Recovering boundary
+Info    : Done reconstructing mesh (Wall 0.0168028s, CPU 0s)
+Info    : Found volume 1
+Info    : It. 0 - 0 nodes created - worst tet radius 1.62649 (nodes removed 0 0)
+Info    : 3D refinement terminated (1356 nodes total):
+Info    :  - 0 Delaunay cavities modified for star shapeness
+Info    :  - 0 nodes could not be inserted
+Info    :  - 4739 tetrahedra created in 0.00832009 sec. (569584 tets/s)
+Info    : 0 node relocations
+Info    : Done meshing 3D (Wall 0.044457s, CPU 0.03125s)
+Info    : Optimizing mesh...
+Info    : Optimizing volume 1
+Info    : Optimization starts (volume = 0.00196765) with worst = 0.0221003 / average = 0.745042:
+Info    : 0.00 < quality < 0.10 :        14 elements
+Info    : 0.10 < quality < 0.20 :        29 elements
+Info    : 0.20 < quality < 0.30 :        35 elements
+Info    : 0.30 < quality < 0.40 :        66 elements
+Info    : 0.40 < quality < 0.50 :       117 elements
+Info    : 0.50 < quality < 0.60 :       270 elements
+Info    : 0.60 < quality < 0.70 :       901 elements
+Info    : 0.70 < quality < 0.80 :      1597 elements
+Info    : 0.80 < quality < 0.90 :      1202 elements
+Info    : 0.90 < quality < 1.00 :       508 elements
+Info    : 77 edge swaps, 1 node relocations (volume = 0.00196765): worst = 0.300905 / average = 0.755348 (Wall 0.00145507s, CPU 0s)
+Info    : No ill-shaped tets in the mesh :-)
+Info    : 0.00 < quality < 0.10 :         0 elements
+Info    : 0.10 < quality < 0.20 :         0 elements
+Info    : 0.20 < quality < 0.30 :         0 elements
+Info    : 0.30 < quality < 0.40 :        65 elements
+Info    : 0.40 < quality < 0.50 :       115 elements
+Info    : 0.50 < quality < 0.60 :       267 elements
+Info    : 0.60 < quality < 0.70 :       886 elements
+Info    : 0.70 < quality < 0.80 :      1617 elements
+Info    : 0.80 < quality < 0.90 :      1211 elements
+Info    : 0.90 < quality < 1.00 :       507 elements
+Info    : Done optimizing mesh (Wall 0.00451398s, CPU 0s)
+Info    : 1356 nodes 7044 elements
+Info    : Writing 'E:\pythonGATH\outputs\mesh\ga_eval_0002_1773696416.msh'...
+Info    : Done writing 'E:\pythonGATH\outputs\mesh\ga_eval_0002_1773696416.msh'
+Info    : Stopped on Tue Mar 17 05:26:56 2026 (From start: Wall 0.0819058s, CPU 0.03125s)
+2026-03-17 05:26:56 | INFO | Real-mode placeholder solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0002_1773696416_observations.csv
+2026-03-17 05:26:56 | INFO | score case=ga_eval_0002_1773696416 coverage=58.0220 uniformity=1.3252 spill=92.6403 beam_target=60.5796 beam_stability=0.0000 contrast=0.0000 efficiency=0.0000 matching=0.0244 geometry=0.0572
+2026-03-17 05:26:56 | INFO | case=ga_eval_0002_1773696416 fitness=-240.215947 total_error=240.215947
+2026-03-17 05:26:56 | INFO | Minimal optimization finished. Result stored at E:\pythonGATH\outputs\minimal_optimization_result.json

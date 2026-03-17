@@ -1,0 +1,14 @@
+2026-03-17 04:58:51 | INFO | Starting minimal optimization in mode=mock
+2026-03-17 04:58:51 | INFO | Mock mesh generated at /mnt/e/pythonGATH/outputs/mesh/ga_eval_0001_1773694731.msh
+2026-03-17 04:58:51 | INFO | Mock solver output generated at /mnt/e/pythonGATH/outputs/solver/ga_eval_0001_1773694731_observations.csv
+2026-03-17 04:58:51 | INFO | case=ga_eval_0001_1773694731 fitness=-163.427738 total_error=163.427738
+2026-03-17 04:58:51 | INFO | Mock mesh generated at /mnt/e/pythonGATH/outputs/mesh/ga_eval_0002_1773694731.msh
+2026-03-17 04:58:51 | INFO | Mock solver output generated at /mnt/e/pythonGATH/outputs/solver/ga_eval_0002_1773694731_observations.csv
+2026-03-17 04:58:51 | INFO | case=ga_eval_0002_1773694731 fitness=-196.982490 total_error=196.982490
+2026-03-17 04:58:51 | INFO | Mock mesh generated at /mnt/e/pythonGATH/outputs/mesh/ga_eval_0003_1773694731.msh
+2026-03-17 04:58:51 | INFO | Mock solver output generated at /mnt/e/pythonGATH/outputs/solver/ga_eval_0003_1773694731_observations.csv
+2026-03-17 04:58:51 | INFO | case=ga_eval_0003_1773694731 fitness=-104.753474 total_error=104.753474
+2026-03-17 04:58:51 | INFO | Mock mesh generated at /mnt/e/pythonGATH/outputs/mesh/ga_eval_0004_1773694731.msh
+2026-03-17 04:58:51 | INFO | Mock solver output generated at /mnt/e/pythonGATH/outputs/solver/ga_eval_0004_1773694731_observations.csv
+2026-03-17 04:58:51 | INFO | case=ga_eval_0004_1773694731 fitness=-52.606385 total_error=52.606385
+2026-03-17 04:58:51 | INFO | Minimal optimization finished. Result stored at /mnt/e/pythonGATH/outputs/minimal_optimization_result.json

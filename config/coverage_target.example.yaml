@@ -1,0 +1,50 @@
+horizontal_coverage_deg: 90.0
+vertical_coverage_deg: 60.0
+transition_margin_deg: 8.0
+in_coverage_target_db: 0.0
+out_of_coverage_threshold_db: -12.0
+horizontal_target_beamwidth_deg: 90.0
+vertical_target_beamwidth_deg: 60.0
+frequencies_hz: [1000.0, 2000.0, 4000.0]
+frequency_band_hz: ""
+objective_weights:
+  w_in: 0.40
+  w_out: 0.30
+  w_bw: 0.15
+  w_smooth: 0.05
+  w_eff: 0.05
+  w_mfg: 0.05
+
+# Optional global frequency weighting (applies to alpha/beta/gamma if specific maps are not provided)
+frequency_weights:
+  "1000": 1.0
+  "2000": 1.0
+  "4000": 1.0
+
+# Optional explicit maps
+alpha_frequency_weights: {}
+beta_frequency_weights: {}
+gamma_frequency_weights: {}
+
+# Efficiency/matching proxy lower bounds
+min_efficiency_proxy_db: -6.0
+min_matching_proxy: 0.45
+
+# Optional per-frequency overrides
+per_frequency:
+  - frequency_hz: 1000
+    in_coverage_target_db: 0.0
+    out_of_coverage_threshold_db: -10.0
+    horizontal_target_beamwidth_deg: 95.0
+    vertical_target_beamwidth_deg: 70.0
+    alpha_f: 1.0
+    beta_f: 1.0
+    gamma_f: 1.0
+  - frequency_hz: 4000
+    in_coverage_target_db: 0.0
+    out_of_coverage_threshold_db: -14.0
+    horizontal_target_beamwidth_deg: 80.0
+    vertical_target_beamwidth_deg: 55.0
+    alpha_f: 1.2
+    beta_f: 1.1
+    gamma_f: 1.1

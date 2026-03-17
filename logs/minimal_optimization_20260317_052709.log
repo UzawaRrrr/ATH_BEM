@@ -1,0 +1,14 @@
+2026-03-17 05:27:09 | INFO | Starting minimal optimization in mode=mock
+2026-03-17 05:27:09 | INFO | Mock mesh generated at /mnt/e/pythonGATH/outputs/mesh/ga_eval_0001_1773696429.msh
+2026-03-17 05:27:09 | INFO | Mock solver output generated at /mnt/e/pythonGATH/outputs/solver/ga_eval_0001_1773696429_observations.csv
+2026-03-17 05:27:09 | INFO | score case=ga_eval_0001_1773696429 coverage=48.4258 uniformity=1.6838 spill=76.6680 beam_target=30.0682 beam_stability=0.0000 contrast=0.0000 efficiency=0.0000 matching=0.1821 geometry=0.0165
+2026-03-17 05:27:09 | INFO | case=ga_eval_0001_1773696429 fitness=-185.565217 total_error=185.565217
+2026-03-17 05:27:09 | INFO | Mock mesh generated at /mnt/e/pythonGATH/outputs/mesh/ga_eval_0002_1773696429.msh
+2026-03-17 05:27:09 | INFO | Mock solver output generated at /mnt/e/pythonGATH/outputs/solver/ga_eval_0002_1773696429_observations.csv
+2026-03-17 05:27:09 | INFO | score case=ga_eval_0002_1773696429 coverage=58.0220 uniformity=1.3252 spill=92.6403 beam_target=60.5796 beam_stability=0.0000 contrast=0.0000 efficiency=0.0000 matching=0.0244 geometry=0.0572
+2026-03-17 05:27:09 | INFO | case=ga_eval_0002_1773696429 fitness=-240.215947 total_error=240.215947
+2026-03-17 05:27:09 | INFO | Mock mesh generated at /mnt/e/pythonGATH/outputs/mesh/ga_eval_0003_1773696429.msh
+2026-03-17 05:27:09 | INFO | Mock solver output generated at /mnt/e/pythonGATH/outputs/solver/ga_eval_0003_1773696429_observations.csv
+2026-03-17 05:27:09 | INFO | score case=ga_eval_0003_1773696429 coverage=29.2855 uniformity=2.5628 spill=50.3120 beam_target=0.6227 beam_stability=0.0000 contrast=0.0000 efficiency=0.0000 matching=0.1305 geometry=0.0102
+2026-03-17 05:27:09 | INFO | case=ga_eval_0003_1773696429 fitness=-106.783284 total_error=106.783284
+2026-03-17 05:27:09 | INFO | Minimal optimization finished. Result stored at /mnt/e/pythonGATH/outputs/minimal_optimization_result.json

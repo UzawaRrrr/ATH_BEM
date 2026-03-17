@@ -1,0 +1,33 @@
+parameters:
+  length:
+    include_in_ga: true
+    initial_value: 0.24
+    min_value: 0.12
+    max_value: 0.5
+    mutation_scale: 0.1
+    unit: m
+    notes: Horn length
+  throat_radius:
+    include_in_ga: false
+    initial_value: 0.02
+    min_value: 0.01
+    max_value: 0.05
+    mutation_scale: 0.0254
+    unit: m
+    notes: Driver throat radius
+  mouth_radius:
+    include_in_ga: true
+    initial_value: 0.12
+    min_value: 0.05
+    max_value: 0.4
+    mutation_scale: 0.1
+    unit: m
+    notes: Mouth radius
+  flare:
+    include_in_ga: true
+    initial_value: 1.3
+    min_value: 0.4
+    max_value: 2.5
+    mutation_scale: 0.1
+    unit: '-'
+    notes: Flare factor

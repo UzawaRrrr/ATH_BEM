@@ -1,0 +1,15 @@
+2026-03-17 14:53:46 | INFO | Starting minimal optimization in mode=mock
+2026-03-17 14:53:46 | INFO | GA parameter setup source=e:\pythonGATH\outputs\tmp\ga_parameters_test.yaml enabled=length,throat_radius,mouth_radius disabled=flare
+2026-03-17 14:53:46 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0001_1773730426.msh
+2026-03-17 14:53:46 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0001_1773730426_observations.csv
+2026-03-17 14:53:46 | INFO | score case=ga_eval_0001_1773730426 J=36.6800 E_in=47.6634 E_out=29.9729 E_bw=49.8058 E_smooth=22.8553 E_eff=0.1795 E_mfg=0.0025
+2026-03-17 14:53:46 | INFO | case=ga_eval_0001_1773730426 fitness=-36.679980 total_error=36.679980
+2026-03-17 14:53:46 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0002_1773730426.msh
+2026-03-17 14:53:46 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0002_1773730426_observations.csv
+2026-03-17 14:53:46 | INFO | score case=ga_eval_0002_1773730426 J=20.0775 E_in=17.6017 E_out=16.3887 E_bw=49.8058 E_smooth=12.9836 E_eff=0.0000 E_mfg=0.0025
+2026-03-17 14:53:46 | INFO | case=ga_eval_0002_1773730426 fitness=-20.077482 total_error=20.077482
+2026-03-17 14:53:46 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\ga_eval_0003_1773730426.msh
+2026-03-17 14:53:46 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\ga_eval_0003_1773730426_observations.csv
+2026-03-17 14:53:46 | INFO | score case=ga_eval_0003_1773730426 J=47.5383 E_in=67.8125 E_out=38.3213 E_bw=49.8058 E_smooth=28.7284 E_eff=0.1890 E_mfg=0.0025
+2026-03-17 14:53:46 | INFO | case=ga_eval_0003_1773730426 fitness=-47.538264 total_error=47.538264
+2026-03-17 14:53:46 | INFO | Minimal optimization finished. Result stored at E:\pythonGATH\outputs\minimal_optimization_result.json
