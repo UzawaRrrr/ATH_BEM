@@ -1,0 +1,26 @@
+; Ath version V2025-06
+; Created: 2026-03-19 17:15
+ABEC.SimType = 2
+Coverage.Angle = 35
+Length = 200
+Mesh.AngularSegments = 64
+Mesh.Enclosure = {
+BackResolution = 100,100,100,100
+Depth = 210
+EdgeRadius = 2.5
+FrontResolution = 100,100,100,100
+Spacing = 2.5,2.5,2.5,2.5
+}
+Mesh.LengthSegments = 24
+Mesh.ThroatResolution = 2
+Output.ABECProject = 1
+Output.DestDir = E:/pythonGATH
+Output.MSH = 0
+Output.STL = 1
+Source.Radius = 25.4
+Source.Shape = 2
+Term.n = 4
+Term.q = 0.996
+Term.s = 1
+Throat.Angle = 10
+Throat.Diameter = 25.4

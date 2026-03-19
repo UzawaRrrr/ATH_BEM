@@ -1,0 +1,20 @@
+; Ath version V2025-06
+; Created: 2026-03-19 13:07
+ABEC.SimType = 2
+Coverage.Angle = 45
+Length = 60
+Mesh.AngularSegments = 64
+Mesh.LengthSegments = 24
+Mesh.ThroatResolution = 4
+Output.ABECProject = 1
+Output.DestDir = E:/pythonGATH/ath-2025-06
+Output.MSH = 1
+Output.STL = 0
+Source.Radius = 25.4
+Source.Shape = 2
+Source.Velocity = 2
+Term.n = 4
+Term.q = 0.98
+Term.s = 1
+Throat.Angle = 10
+Throat.Diameter = 25.4

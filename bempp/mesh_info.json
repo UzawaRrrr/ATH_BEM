@@ -1,0 +1,40 @@
+{
+  "mesh_file": "E:/pythonGATH/test/ABEC_FreeStanding/test.msh",
+  "group_source": "gmsh:physical",
+  "detected_groups": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "active_groups": [
+    1,
+    2,
+    3
+  ],
+  "element_count_per_group": {
+    "1": 4732,
+    "2": 92,
+    "3": 256,
+    "4": 2468
+  },
+  "active_element_count_per_group": {
+    "1": 4732,
+    "2": 92,
+    "3": 256
+  },
+  "bbox": [
+    0.0,
+    0.2765,
+    0.0,
+    0.2765,
+    -0.01,
+    0.20000000000000012
+  ],
+  "mesh_dimension": 2,
+  "warnings": [
+    "Ignoring groups from boundary import: [4]"
+  ],
+  "vertices": 3883,
+  "elements": 5080
+}

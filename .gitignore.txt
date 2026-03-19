@@ -1,0 +1,9 @@
+# 忽略虛擬環境資料夾
+venv/
+.venv/
+env/
+.env/
+
+# 順便忽略 Python 會自動產生的暫存檔
+__pycache__/
+*.pyc

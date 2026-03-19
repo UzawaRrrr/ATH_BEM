@@ -1,0 +1,42 @@
+{
+  "mesh_file": "E:/pythonGATH/ath-2025-06/test/ABEC_FreeStanding/test.msh",
+  "mesh_file_wsl": "/mnt/e/pythonGATH/ath-2025-06/test/ABEC_FreeStanding/test.msh",
+  "mesh_scale_to_meter": 0.001,
+  "solver_mode": "exterior_velocity_bc",
+  "source_groups": [
+    2
+  ],
+  "wall_groups": [],
+  "interface_groups": [],
+  "ignore_groups": [],
+  "source_gain": [
+    1.0
+  ],
+  "source_direction": [
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "velocity_model": "uniform",
+  "f1": 2000.0,
+  "f2": 2000.0,
+  "num_freq": 1,
+  "rho0": 1.21,
+  "c0": 343.0,
+  "mic_distance": 3.0,
+  "plane": "XZ",
+  "theta_count": 61,
+  "reference_pressure": 2.8284271247461902e-05,
+  "export_png": false,
+  "export_boundary_pressure": false,
+  "symmetry": {
+    "enabled": false,
+    "planes": [],
+    "tolerance": 1e-06,
+    "require_strict_reduced_mesh": true,
+    "debug_full_rebuild": false,
+    "mode_label": "off"
+  }
+}
