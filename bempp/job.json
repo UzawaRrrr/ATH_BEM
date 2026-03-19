@@ -1,0 +1,39 @@
+{
+  "mesh_file": "E:/pythonGATH/Tritonia-M/ABEC_FreeStanding/Tritonia-M.msh",
+  "mesh_file_wsl": "/mnt/e/pythonGATH/Tritonia-M/ABEC_FreeStanding/Tritonia-M.msh",
+  "mesh_scale_to_meter": 0.001,
+  "solver_mode": "exterior_velocity_bc",
+  "source_groups": [
+    2
+  ],
+  "wall_groups": [
+    1,
+    3
+  ],
+  "interface_groups": [],
+  "ignore_groups": [
+    4
+  ],
+  "source_gain": [
+    1.0
+  ],
+  "source_direction": [
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "velocity_model": "uniform",
+  "f1": 1200.0,
+  "f2": 20000.0,
+  "num_freq": 48,
+  "rho0": 1.21,
+  "c0": 343.0,
+  "mic_distance": 5.0,
+  "plane": "XZ",
+  "theta_count": 361,
+  "reference_pressure": 2.8284271247461902e-05,
+  "export_png": true,
+  "export_boundary_pressure": false
+}

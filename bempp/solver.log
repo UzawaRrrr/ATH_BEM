@@ -1,0 +1,7 @@
+[bem_solver] Loading job from /mnt/e/pythonGATH/bempp/job.json
+
+[bem_solver] Mesh ready: 3749 vertices, 5274 triangles, 3 active groups.
+[bem_solver] Source groups: [2]
+[bem_solver] Wall groups: [1, 3]
+
+[bem_solver] Solve completed successfully.

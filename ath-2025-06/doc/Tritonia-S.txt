@@ -18,13 +18,14 @@ Morph.FixedPart = 0.0
 ; Mesh
 Mesh.Quadrants = 14
 Mesh.AngularSegments = 80
-Mesh.LengthSegments = 20
+Mesh.LengthSegments = 18
 Mesh.CornerSegments = 4
+Mesh.ThroatResolution = 4
 Mesh.MouthResolution = 10
 
 ; ABEC
 ABEC.SimType = 2
-ABEC.f1 = 400
+ABEC.f1 = 1200
 ABEC.f2 = 16000
 ABEC.NumFrequencies = 40
 
@@ -47,7 +48,15 @@ ABEC.Polars:SPL_H = {
 
 ; Report
 Report = {
-  Title = "ATH Tritonia-M"
+  Title = "ATH Tritonia-S"
   PolarData = SPL_H
   NormAngle = 10
+}
+
+; Advanced / Preserved Blocks
+ABEC.Polars:SPL_V = {
+  MapAngleRange = 0,180,37  ; [deg]
+  Distance = 2 ; [m]
+  Inclination = 270 ; [deg]
+  NormAngle = 10 ; [deg]
 }

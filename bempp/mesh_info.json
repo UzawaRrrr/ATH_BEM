@@ -1,0 +1,40 @@
+{
+  "mesh_file": "E:/pythonGATH/Tritonia-M/ABEC_FreeStanding/Tritonia-M.msh",
+  "group_source": "gmsh:physical",
+  "detected_groups": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "active_groups": [
+    1,
+    2,
+    3
+  ],
+  "element_count_per_group": {
+    "1": 3782,
+    "2": 60,
+    "3": 1432,
+    "4": 1970
+  },
+  "active_element_count_per_group": {
+    "1": 3782,
+    "2": 60,
+    "3": 1432
+  },
+  "bbox": [
+    0.0,
+    0.2066140364029584,
+    -0.178736,
+    0.178736,
+    -0.00626,
+    0.13500000000000012
+  ],
+  "mesh_dimension": 2,
+  "warnings": [
+    "Ignoring groups from boundary import: [4]"
+  ],
+  "vertices": 3749,
+  "elements": 5274
+}
