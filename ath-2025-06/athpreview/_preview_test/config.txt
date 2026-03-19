@@ -1,0 +1,15 @@
+; Ath version V2025-06
+; Created: 2026-03-18 20:49
+Coverage.Angle = 45
+Length = 60
+Mesh.AngularSegments = 16
+Mesh.LengthSegments = 8
+Output.ABECProject = 0
+Output.DestDir = E:/pythonGATH/ath-2025-06/athpreview
+Output.MSH = 1
+Output.STL = 1
+Term.n = 4
+Term.q = 0.98
+Term.s = 1
+Throat.Angle = 10
+Throat.Diameter = 25.4

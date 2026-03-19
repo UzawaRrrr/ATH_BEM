@@ -1,2 +1,0 @@
-2026-03-17 15:37:21 | INFO | Parsed good schema: {'frequency_key': 'frequency_hz', 'theta_key': 'theta_deg', 'theta_unit': 'deg', 'phi_key': 'phi_deg', 'phi_unit': 'deg', 'spl_key': 'spl_db'}
-2026-03-17 15:37:21 | INFO | Parsed bad schema: {'frequency_key': 'frequency_hz', 'theta_key': 'theta_deg', 'theta_unit': 'deg', 'phi_key': 'phi_deg', 'phi_unit': 'deg', 'spl_key': 'spl_db'}

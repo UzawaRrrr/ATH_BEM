@@ -1,3 +1,0 @@
-2026-03-17 16:12:35 | INFO | Mock mesh generated at E:\pythonGATH\outputs\mesh\smoke_1773735155.msh
-2026-03-17 16:12:35 | INFO | Mock solver output generated at E:\pythonGATH\outputs\solver\smoke_1773735155_observations.csv
-2026-03-17 16:12:35 | INFO | score case=smoke_1773735155 J=20.5584 E_in=18.2072 E_out=33.2418 E_bw=14.8916 E_smooth=21.3835 E_eff=0.0000 E_mfg=0.0025

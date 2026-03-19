@@ -1,4 +1,0 @@
-frequency_hz,target_db,outside_target_db,spill_threshold_db,coverage_half_angle_deg,bw_h_target_deg,bw_v_target_deg,alpha_f,beta_f,gamma_f,min_efficiency_proxy_db,min_matching_proxy
-1000,0,-20,-10,50,100,100,1.0,1.0,1.0,-7,0.40
-2000,0,-20,-12,45,90,90,1.0,1.2,1.2,-6,0.45
-4000,0,-22,-14,40,80,80,1.2,1.4,1.4,-6,0.50
