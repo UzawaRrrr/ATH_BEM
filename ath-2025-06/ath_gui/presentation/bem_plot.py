@@ -68,6 +68,76 @@ def _klippel_like_color(value_db: float, vmin: float = -24.0, vmax: float = 6.0)
     return f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
 
 
+def _format_freq_tick(freq_hz: float) -> str:
+    if freq_hz >= 1000.0:
+        if freq_hz >= 10000.0 or abs((freq_hz / 1000.0) - round(freq_hz / 1000.0)) < 1e-9:
+            return f"{freq_hz / 1000.0:.0f}k"
+        return f"{freq_hz / 1000.0:.1f}k"
+    if freq_hz >= 100.0:
+        return f"{freq_hz:.0f}"
+    return f"{freq_hz:.1f}"
+
+
+def _build_log_ticks(min_freq: float, max_freq: float, *, max_ticks: int = 10) -> list[float]:
+    if min_freq <= 0:
+        min_freq = 1.0
+    min_decade = int(math.floor(math.log10(min_freq)))
+    max_decade = int(math.ceil(math.log10(max_freq)))
+    candidates: list[float] = []
+    for decade in range(min_decade, max_decade + 1):
+        base = 10**decade
+        for factor in (1.0, 2.0, 5.0):
+            tick = base * factor
+            if min_freq <= tick <= max_freq:
+                candidates.append(float(tick))
+    ticks = sorted(set(candidates))
+    if len(ticks) <= max_ticks:
+        return ticks
+    step = max(1, len(ticks) // max_ticks)
+    reduced = ticks[::step]
+    if ticks[-1] not in reduced:
+        reduced.append(ticks[-1])
+    return sorted(set(reduced))
+
+
+def _build_linear_ticks(min_value: float, max_value: float, *, target_count: int = 6) -> list[float]:
+    span = max(max_value - min_value, 1e-9)
+    raw_step = span / max(target_count - 1, 1)
+    magnitude = 10 ** math.floor(math.log10(raw_step))
+    for multiplier in (1.0, 2.0, 2.5, 5.0, 10.0):
+        step = multiplier * magnitude
+        if span / step <= target_count + 1:
+            break
+    start = math.ceil(min_value / step) * step
+    ticks: list[float] = []
+    value = start
+    while value <= max_value + (step * 0.5):
+        if min_value - 1e-9 <= value <= max_value + 1e-9:
+            ticks.append(float(value))
+        value += step
+    if min_value not in ticks:
+        ticks.insert(0, float(min_value))
+    if max_value not in ticks:
+        ticks.append(float(max_value))
+    return sorted(set(round(tick, 6) for tick in ticks))
+
+
+def _build_angle_ticks(min_angle: float, max_angle: float) -> tuple[list[float], list[float]]:
+    span = max(max_angle - min_angle, 1e-9)
+    if span <= 40:
+        major_step = 5.0
+    elif span <= 90:
+        major_step = 10.0
+    elif span <= 180:
+        major_step = 15.0
+    else:
+        major_step = 30.0
+    minor_step = major_step / 2.0
+    majors = _build_linear_ticks(min_angle, max_angle, target_count=max(4, int(span / major_step) + 1))
+    minors = _build_linear_ticks(min_angle, max_angle, target_count=max(6, int(span / minor_step) + 1))
+    return majors, minors
+
+
 def _draw_single_frequency_polar(canvas: tk.Canvas, polar_rows: list[dict[str, float]], *, preferred_hz: float = 1000.0) -> str:
     grouped = _group_rows_by_frequency(polar_rows)
     frequencies = sorted(grouped)
@@ -164,12 +234,12 @@ def _draw_band_map(canvas: tk.Canvas, polar_rows: list[dict[str, float]], *, log
         return ""
 
     canvas.delete("all")
-    width = max(canvas.winfo_width(), 360)
-    height = max(canvas.winfo_height(), 280)
-    left = 58
-    right = width - 28
-    top = 22
-    bottom = height - 48
+    width = max(canvas.winfo_width(), 520)
+    height = max(canvas.winfo_height(), 360)
+    left = 72
+    right = width - 86
+    top = 26
+    bottom = height - 56
     plot_w = max(right - left, 12)
     plot_h = max(bottom - top, 12)
 
@@ -230,39 +300,49 @@ def _draw_band_map(canvas: tk.Canvas, polar_rows: list[dict[str, float]], *, log
     canvas.create_rectangle(left, top, right, bottom, outline=BORDER)
 
     if log_x:
-        tick_freqs = [100, 200, 500, 1000, 2000, 5000, 10000, 20000]
-        tick_freqs = [freq for freq in tick_freqs if min_freq <= freq <= max_freq]
+        tick_freqs = _build_log_ticks(min_freq, max_freq, max_ticks=10)
     else:
-        tick_freqs = [min_freq + ((max_freq - min_freq) * ratio) for ratio in (0.0, 0.25, 0.5, 0.75, 1.0)]
+        tick_freqs = _build_linear_ticks(min_freq, max_freq, target_count=7)
 
     for freq in tick_freqs:
         x = freq_to_x(freq)
+        canvas.create_line(x, top, x, bottom, fill="#28374f")
         canvas.create_line(x, bottom, x, bottom + 5, fill=BORDER)
-        label = f"{int(freq)}" if freq >= 100 else f"{freq:.1f}"
+        label = _format_freq_tick(freq)
         canvas.create_text(x, bottom + 16, text=label, fill=MUTED, font="AthUiCanvasSmallFont")
 
-    angle_ticks = [min_angle, (min_angle + max_angle) / 2.0, max_angle]
-    for angle in angle_ticks:
+    angle_major_ticks, angle_minor_ticks = _build_angle_ticks(min_angle, max_angle)
+    for angle in angle_minor_ticks:
         y = angle_to_y(angle)
+        canvas.create_line(left, y, right, y, fill="#1c2a41")
+    for angle in angle_major_ticks:
+        y = angle_to_y(angle)
+        canvas.create_line(left, y, right, y, fill="#2b3d59")
         canvas.create_line(left - 5, y, left, y, fill=BORDER)
         canvas.create_text(left - 8, y, text=f"{angle:.0f}°", fill=MUTED, anchor="e", font="AthUiCanvasSmallFont")
 
-    canvas.create_text((left + right) / 2, height - 18, text="Frequency [Hz]", fill=MUTED, font="AthUiCanvasSmallFont")
+    canvas.create_text((left + right) / 2, height - 18, text=f"Frequency [Hz] ({'log' if log_x else 'linear'})", fill=MUTED, font="AthUiCanvasSmallFont")
     canvas.create_text(18, (top + bottom) / 2, text="Angle [deg]", fill=MUTED, angle=90, font="AthUiCanvasSmallFont")
 
-    legend_x0 = right - 170
-    legend_y0 = top + 12
-    legend_w = 150
-    legend_h = 14
-    for i in range(legend_w):
-        value = -24.0 + (30.0 * (i / max(legend_w - 1, 1)))
+    colorbar_x0 = right + 28
+    colorbar_x1 = colorbar_x0 + 16
+    colorbar_y0 = top
+    colorbar_y1 = bottom
+    colorbar_h = max(colorbar_y1 - colorbar_y0, 2)
+    for i in range(colorbar_h):
+        value = 6.0 - (30.0 * (i / max(colorbar_h - 1, 1)))
         color = _klippel_like_color(value, vmin=-24.0, vmax=6.0)
-        canvas.create_line(legend_x0 + i, legend_y0, legend_x0 + i, legend_y0 + legend_h, fill=color)
-    canvas.create_rectangle(legend_x0, legend_y0, legend_x0 + legend_w, legend_y0 + legend_h, outline=BORDER)
-    canvas.create_text(legend_x0, legend_y0 + legend_h + 10, text="-24 dB", fill=MUTED, anchor="w", font="AthUiCanvasSmallFont")
-    canvas.create_text(legend_x0 + legend_w, legend_y0 + legend_h + 10, text="+6 dB", fill=MUTED, anchor="e", font="AthUiCanvasSmallFont")
+        y = colorbar_y0 + i
+        canvas.create_line(colorbar_x0, y, colorbar_x1, y, fill=color)
+    canvas.create_rectangle(colorbar_x0, colorbar_y0, colorbar_x1, colorbar_y1, outline=BORDER)
+    for value in (6, 0, -6, -12, -18, -24):
+        ratio = (6.0 - float(value)) / 30.0
+        y = colorbar_y0 + (ratio * colorbar_h)
+        canvas.create_line(colorbar_x1, y, colorbar_x1 + 4, y, fill=BORDER)
+        canvas.create_text(colorbar_x1 + 8, y, text=f"{value:+.0f}", fill=MUTED, anchor="w", font="AthUiCanvasSmallFont")
+    canvas.create_text(colorbar_x0 + 8, colorbar_y0 - 10, text="dB", fill=MUTED, anchor="s", font="AthUiCanvasSmallFont")
 
-    caption = f"頻段離軸圖（{'Log X' if log_x else 'Linear X'}）"
+    caption = f"頻段離軸圖（{len(frequencies)} freq × {len(angle_set)} angles, {'Log X' if log_x else 'Linear X'}）"
     canvas.create_text((left + right) / 2, 10, text=caption, fill=TEXT, font="AthUiHeadingFont")
     return caption
 

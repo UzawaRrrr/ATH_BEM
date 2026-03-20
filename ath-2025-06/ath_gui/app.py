@@ -659,7 +659,7 @@ class AthConfigStudio(tk.Tk):
             highlightthickness=1,
             highlightbackground=BORDER,
             relief="flat",
-            height=360,
+            height=460,
         )
         self.bem_polar_canvas.grid(row=2, column=0, sticky="nsew")
         self.bem_polar_canvas.bind("<Configure>", lambda _event: self._refresh_bem_plot())

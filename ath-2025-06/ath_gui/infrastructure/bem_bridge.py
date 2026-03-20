@@ -70,18 +70,23 @@ def build_bem_solver_command(
             f"Resolved ROOT_DIR={ROOT_DIR}. Please verify project layout."
         )
     solver_dir_wsl = windows_path_to_wsl(solver_dir.resolve())
-    solver_root = expand_wsl_user_path(wsl_solver_root)
-    solver_entry = expand_wsl_user_path(wsl_solver_entry)
+    repo_solver_entry = f"{solver_dir_wsl}/solver_cli.py"
+    # Keep backward compatibility: caller can still override a custom WSL entry.
+    if str(wsl_solver_entry).strip() and str(wsl_solver_entry).strip() != DEFAULT_WSL_SOLVER_ENTRY:
+        solver_entry = expand_wsl_user_path(wsl_solver_entry)
+    else:
+        solver_entry = repo_solver_entry
+
+    # Preserve old argument for compatibility even though sync is removed.
+    _ = wsl_solver_root
     venv_root = expand_wsl_user_path(wsl_venv)
     venv_python = f"{venv_root}/bin/python"
-    solver_root_q = quote_bash_path(solver_root)
     solver_entry_q = quote_bash_path(solver_entry)
     job_q = shlex.quote(job_file_wsl)
     venv_python_q = quote_bash_path(venv_python)
 
-    sync_command = f"mkdir -p {solver_root_q} && cp -r {shlex.quote(solver_dir_wsl)}/. {solver_root_q}/"
     run_command = f"{venv_python_q} {solver_entry_q} {job_q}"
-    return f"set -euo pipefail && {sync_command} && {run_command}"
+    return f"set -euo pipefail && {run_command}"
 
 
 def start_bem_solver(

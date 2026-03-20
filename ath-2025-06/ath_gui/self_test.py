@@ -139,8 +139,8 @@ CustomThing = 42
     bem_command = build_bem_solver_command("/mnt/e/tmp/demo/job.json")
     assert '"${HOME}/venvs/bempp-wsl/bin/python"' in bem_command
     assert "source " not in bem_command
-    assert "/ath_gui/bem_solver/." not in bem_command
-    assert "/bem_solver/." in bem_command
+    assert "cp -r" not in bem_command
+    assert "/ath-2025-06/bem_solver/solver_cli.py" in bem_command
     assert ATH_EXE.exists()
     assert (ROOT_DIR / "bem_solver").exists()
 

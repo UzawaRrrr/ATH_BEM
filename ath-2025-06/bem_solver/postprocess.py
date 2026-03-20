@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import numpy as np
@@ -51,6 +52,7 @@ def export_polar_png(job_dir: Path, frequencies_hz: np.ndarray, angles_deg: np.n
     matplotlib.use("Agg", force=True)
     from matplotlib.colors import LinearSegmentedColormap
     from matplotlib import pyplot as plt
+    from matplotlib import ticker
 
     if spl_db.size == 0:
         raise ValueError("Cannot export polar PNG because SPL matrix is empty.")
@@ -80,36 +82,70 @@ def export_polar_png(job_dir: Path, frequencies_hz: np.ndarray, angles_deg: np.n
     )
 
     output_path = job_dir / "polar.png"
-    figure, axis = plt.subplots(figsize=(10, 6))
+    figure, axis = plt.subplots(figsize=(12.5, 7.5), dpi=150, constrained_layout=True)
     image = axis.pcolormesh(
         frequencies_hz,
         angles_deg,
         spl_relative_db.T,
-        shading="auto",
+        shading="nearest",
         cmap=klippel_like,
         vmin=-24.0,
         vmax=6.0,
+        antialiased=False,
+        rasterized=True,
     )
-    contour_levels = [-18.0, -12.0, -9.0, -6.0, -3.0, 0.0, 3.0]
-    contour = axis.contour(
-        frequencies_hz,
-        angles_deg,
-        spl_relative_db.T,
-        levels=contour_levels,
-        colors="black",
-        linewidths=0.55,
-        alpha=0.45,
-    )
-    axis.clabel(contour, fmt="%ddB", fontsize=7, inline=True)
+    if len(frequencies_hz) >= 2 and len(angles_deg) >= 2:
+        contour_levels = [-18.0, -12.0, -9.0, -6.0, -3.0, 0.0, 3.0]
+        contour = axis.contour(
+            frequencies_hz,
+            angles_deg,
+            spl_relative_db.T,
+            levels=contour_levels,
+            colors="black",
+            linewidths=0.55,
+            alpha=0.45,
+        )
+        axis.clabel(contour, fmt="%ddB", fontsize=7, inline=True)
 
-    axis.set_title("ATH BEMPP Off-Axis Map (Klippel-like)")
+    axis.set_title(
+        f"ATH BEMPP Off-Axis Map (Klippel-like) | {len(frequencies_hz)} freq x {len(angles_deg)} angles",
+        fontsize=12,
+    )
     axis.set_xlabel("Frequency [Hz]")
     axis.set_ylabel("Angle [deg] (0 = +Z axis)")
     axis.set_xscale("log")
-    axis.grid(True, alpha=0.25)
+    freq_min = float(np.min(frequencies_hz))
+    freq_max = float(np.max(frequencies_hz))
+    if math.isclose(freq_min, freq_max):
+        freq_min = max(freq_min * 0.95, 1.0)
+        freq_max = max(freq_max * 1.05, freq_min + 1.0)
+    axis.set_xlim(freq_min, freq_max)
     axis.set_ylim(float(np.min(angles_deg)), float(np.max(angles_deg)))
-    figure.colorbar(image, ax=axis, label="Relative SPL [dB re: on-axis]")
-    figure.tight_layout()
-    figure.savefig(output_path, dpi=140)
+
+    axis.xaxis.set_major_locator(ticker.LogLocator(base=10.0, subs=(1.0, 2.0, 5.0)))
+    axis.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(1.0, 10.0) * 0.1))
+    axis.xaxis.set_major_formatter(ticker.EngFormatter(unit="Hz", sep=" "))
+    angle_span = float(np.max(angles_deg) - np.min(angles_deg))
+    if angle_span <= 90.0:
+        y_major_step = 10.0
+    elif angle_span <= 180.0:
+        y_major_step = 15.0
+    else:
+        y_major_step = 30.0
+    axis.yaxis.set_major_locator(ticker.MultipleLocator(y_major_step))
+    axis.yaxis.set_minor_locator(ticker.MultipleLocator(max(y_major_step / 2.0, 1.0)))
+    axis.tick_params(axis="both", which="major", labelsize=10)
+    axis.tick_params(axis="both", which="minor", labelsize=8)
+    axis.grid(True, which="major", alpha=0.30, linewidth=0.8)
+    axis.grid(True, which="minor", alpha=0.16, linewidth=0.5)
+
+    colorbar = figure.colorbar(
+        image,
+        ax=axis,
+        label="Relative SPL [dB re: on-axis]",
+        ticks=[-24, -18, -12, -6, 0, 6],
+    )
+    colorbar.ax.tick_params(labelsize=9)
+    figure.savefig(output_path, dpi=280, bbox_inches="tight")
     plt.close(figure)
     return output_path

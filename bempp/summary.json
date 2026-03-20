@@ -12,9 +12,9 @@
   ],
   "plane": "XZ",
   "angle_range_mode": "half_circle",
-  "theta_count": 180,
-  "freq_count": 30,
-  "runtime_sec": 1200.11,
+  "theta_count": 19,
+  "freq_count": 24,
+  "runtime_sec": 632.742,
   "symmetry_enabled": true,
   "symmetry_mode": "quarter_xy_even_even",
   "warnings": [
@@ -27,5 +27,27 @@
     "Velocity model: uniform",
     "Symmetry reduction: quarter_xy_even_even",
     "Source group 2: 999 GMRES iterations at 1000.000 Hz with symmetry mode quarter_xy_even_even."
-  ]
+  ],
+  "boundary_role_diagnostics": {
+    "available_groups": [
+      1,
+      2,
+      3
+    ],
+    "source_groups_present": [
+      2
+    ],
+    "wall_groups_present": [
+      1,
+      3
+    ],
+    "source_area_m2": 0.0001261558719632518,
+    "wall_area_m2": 0.2766789404028641,
+    "total_area_m2": 0.2768050962748274,
+    "source_area_ratio": 0.00045575704226918305,
+    "wall_area_ratio": 0.9995442429577307,
+    "boundary_edge_count": 200,
+    "nonmanifold_edge_count": 0,
+    "connected_component_count": 1
+  }
 }

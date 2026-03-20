@@ -196,6 +196,8 @@ class OpenGLPreviewHost:
         self._interactor = None
         self._orientation_widget = None
         self._line_actors: list[object] = []
+        self._marker_actors: list[object] = []
+        self._legend_actors: list[object] = []
         self._text_actor = None
         self._vtk = None
         self._interaction_sensitivity = 1.0
@@ -315,6 +317,12 @@ class OpenGLPreviewHost:
         for actor in self._line_actors:
             self._renderer.RemoveActor(actor)
         self._line_actors.clear()
+        for actor in self._marker_actors:
+            self._renderer.RemoveActor(actor)
+        self._marker_actors.clear()
+        for actor in self._legend_actors:
+            self._renderer.RemoveActor2D(actor)
+        self._legend_actors.clear()
 
     def clear(self, message: str = "No geometry loaded") -> None:
         if not self.available or self._renderer is None:
@@ -391,6 +399,108 @@ class OpenGLPreviewHost:
         actor.GetProperty().SetLineWidth(1.0)
         return actor
 
+    @staticmethod
+    def _group_centroid(
+        points: dict[int, tuple[float, float, float]],
+        edges: list[tuple[int, int]],
+    ) -> tuple[float, float, float] | None:
+        if not edges:
+            return None
+        tags: set[int] = set()
+        sample_step = max(1, len(edges) // 2400)
+        for index, (a, b) in enumerate(edges):
+            if index % sample_step != 0:
+                continue
+            if a in points:
+                tags.add(a)
+            if b in points:
+                tags.add(b)
+        if not tags:
+            return None
+
+        sx = 0.0
+        sy = 0.0
+        sz = 0.0
+        count = 0
+        for tag in tags:
+            x, y, z = points[tag]
+            sx += float(x)
+            sy += float(y)
+            sz += float(z)
+            count += 1
+        if count <= 0:
+            return None
+        return (sx / count, sy / count, sz / count)
+
+    def _add_group_marker(
+        self,
+        group_id: int,
+        position: tuple[float, float, float],
+        color: tuple[float, float, float],
+        radius: float,
+    ) -> None:
+        if self._vtk is None or self._renderer is None:
+            return
+        vtk = self._vtk
+        sphere = vtk.vtkSphereSource()
+        sphere.SetCenter(float(position[0]), float(position[1]), float(position[2]))
+        sphere.SetRadius(float(radius))
+        sphere.SetThetaResolution(14)
+        sphere.SetPhiResolution(14)
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputConnection(sphere.GetOutputPort())
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(color[0], color[1], color[2])
+        actor.GetProperty().SetOpacity(0.95)
+        self._renderer.AddActor(actor)
+        self._marker_actors.append(actor)
+
+        if hasattr(vtk, "vtkBillboardTextActor3D"):
+            label = vtk.vtkBillboardTextActor3D()
+            label.SetInput(f"G{group_id}")
+            label.SetPosition(float(position[0]), float(position[1]), float(position[2] + (radius * 1.4)))
+            text_prop = label.GetTextProperty()
+            text_prop.SetColor(color[0], color[1], color[2])
+            text_prop.SetFontSize(16)
+            self._renderer.AddActor(label)
+            self._marker_actors.append(label)
+
+    def _add_group_legend(
+        self,
+        group_edges: dict[int, list[tuple[int, int]]],
+        group_color_map: dict[int, str],
+        group_element_count: dict[str, int],
+    ) -> None:
+        if self._vtk is None or self._renderer is None or self._render_window is None:
+            return
+        vtk = self._vtk
+        window_w, window_h = self._render_window.GetSize()
+        start_x = max(12, window_w - 260)
+        start_y = max(40, window_h - 26)
+
+        header = vtk.vtkTextActor()
+        header.SetInput("Physical Groups")
+        header_prop = header.GetTextProperty()
+        header_prop.SetFontSize(14)
+        header_prop.SetBold(True)
+        header_prop.SetColor(0.84, 0.90, 0.97)
+        header.SetDisplayPosition(start_x, start_y)
+        self._renderer.AddActor2D(header)
+        self._legend_actors.append(header)
+
+        for row, group_id in enumerate(sorted(group_edges)[:10], start=1):
+            color = self._hex_to_rgb(group_color_map.get(group_id, "#37c8b4"))
+            element_count = int(group_element_count.get(str(group_id), 0))
+            item = vtk.vtkTextActor()
+            item.SetInput(f"G{group_id}  edges {len(group_edges[group_id])}  elems {element_count}")
+            item_prop = item.GetTextProperty()
+            item_prop.SetFontSize(12)
+            item_prop.SetColor(color[0], color[1], color[2])
+            item.SetDisplayPosition(start_x, start_y - (row * 18))
+            self._renderer.AddActor2D(item)
+            self._legend_actors.append(item)
+
     def set_geometry(
         self,
         data: dict[str, object],
@@ -406,9 +516,24 @@ class OpenGLPreviewHost:
             int(group_id): list(group_data)
             for group_id, group_data in dict(data.get("group_edges", {})).items()
         }
+        group_element_count = {
+            str(group_id): int(value)
+            for group_id, value in dict(data.get("group_element_count", {})).items()
+        }
 
         self._clear_line_actors()
         added = 0
+        marker_radius = 0.0005
+        if points:
+            xs = [coords[0] for coords in points.values()]
+            ys = [coords[1] for coords in points.values()]
+            zs = [coords[2] for coords in points.values()]
+            span_x = max(xs) - min(xs)
+            span_y = max(ys) - min(ys)
+            span_z = max(zs) - min(zs)
+            diagonal = max((span_x**2 + span_y**2 + span_z**2) ** 0.5, 1.0e-6)
+            marker_radius = max(diagonal * 0.0075, 1.0e-4)
+
         if group_edges:
             for group_id in sorted(group_edges):
                 color = self._hex_to_rgb(group_color_map.get(group_id, fallback_color))
@@ -417,6 +542,10 @@ class OpenGLPreviewHost:
                     self._renderer.AddActor(actor)
                     self._line_actors.append(actor)
                     added += 1
+                centroid = self._group_centroid(points, group_edges[group_id])
+                if centroid is not None:
+                    self._add_group_marker(group_id, centroid, color, marker_radius)
+            self._add_group_legend(group_edges, group_color_map, group_element_count)
         else:
             actor = self._build_polyline_actor(points, edges, self._hex_to_rgb(fallback_color))
             if actor is not None:
@@ -426,7 +555,10 @@ class OpenGLPreviewHost:
 
         if self._text_actor is not None:
             if added > 0:
-                self._text_actor.SetInput("OpenGL preview")
+                if group_edges:
+                    self._text_actor.SetInput(f"OpenGL preview | groups {len(group_edges)}")
+                else:
+                    self._text_actor.SetInput("OpenGL preview | no physical group tags")
             else:
                 self._text_actor.SetInput("No drawable geometry")
 
