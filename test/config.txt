@@ -1,18 +1,19 @@
 ; Ath version V2025-06
-; Created: 2026-03-19 17:15
+; Created: 2026-03-19 19:54
 ABEC.SimType = 2
 Coverage.Angle = 35
 Length = 200
 Mesh.AngularSegments = 64
 Mesh.Enclosure = {
-BackResolution = 100,100,100,100
+BackResolution = 25,25,25,25
 Depth = 210
-EdgeRadius = 2.5
-FrontResolution = 100,100,100,100
-Spacing = 2.5,2.5,2.5,2.5
+EdgeRadius = 10
+FrontResolution = 25,25,25,25
+Spacing = 10,10,10,10
 }
 Mesh.LengthSegments = 24
-Mesh.ThroatResolution = 2
+Mesh.MouthResolution = 15
+Mesh.ThroatResolution = 8
 Output.ABECProject = 1
 Output.DestDir = E:/pythonGATH
 Output.MSH = 0

@@ -14,7 +14,7 @@ if str(THIS_DIR) not in sys.path:
 
 from export_results import write_mesh_info, write_polar_csv, write_solution_npz, write_summary
 from job_model import BemJob
-from mesh_adapter import prepare_boundary_mesh, resolve_wall_groups
+from mesh_adapter import assess_boundary_role_coverage, prepare_boundary_mesh, resolve_wall_groups
 from postprocess import export_polar_png
 from solver_core import solve_exterior_velocity_bc
 
@@ -28,8 +28,9 @@ def _build_summary(
     runtime_sec: float,
     warnings: list[str],
     notes: list[str],
+    boundary_role_diagnostics: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    return {
+    summary = {
         "status": status,
         "mesh_file": job.mesh_file,
         "vertices": vertices,
@@ -46,6 +47,9 @@ def _build_summary(
         "warnings": warnings,
         "notes": notes,
     }
+    if boundary_role_diagnostics:
+        summary["boundary_role_diagnostics"] = boundary_role_diagnostics
+    return summary
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -64,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     prepared_mesh = None
     mesh_warnings: list[str] = []
     solver_notes: list[str] = []
+    boundary_role_diagnostics: dict[str, object] | None = None
 
     try:
         job = BemJob.from_json_file(job_path)
@@ -71,7 +76,9 @@ def main(argv: list[str] | None = None) -> int:
 
         resolved_walls, role_warnings = resolve_wall_groups(job, prepared_mesh.mesh_info.active_groups)
         job.wall_groups = resolved_walls
-        mesh_warnings = list(prepared_mesh.mesh_info.warnings) + role_warnings
+        boundary_role_diagnostics, boundary_warnings = assess_boundary_role_coverage(job, prepared_mesh)
+        prepared_mesh.mesh_info.boundary_role_diagnostics = boundary_role_diagnostics
+        mesh_warnings = list(prepared_mesh.mesh_info.warnings) + role_warnings + boundary_warnings
         prepared_mesh.mesh_info.warnings = mesh_warnings
         write_mesh_info(job_dir, prepared_mesh.mesh_info.to_dict())
 
@@ -83,6 +90,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"[bem_solver] Source groups: {job.source_groups}")
         print(f"[bem_solver] Wall groups: {job.wall_groups}")
+        if boundary_role_diagnostics:
+            print(
+                "[bem_solver] Boundary coverage: "
+                f"source_area={float(boundary_role_diagnostics.get('source_area_m2', 0.0)):.6e} m^2 "
+                f"({float(boundary_role_diagnostics.get('source_area_ratio', 0.0)):.1%}), "
+                f"wall_area={float(boundary_role_diagnostics.get('wall_area_m2', 0.0)):.6e} m^2 "
+                f"({float(boundary_role_diagnostics.get('wall_area_ratio', 0.0)):.1%})."
+            )
 
         result = solve_exterior_velocity_bc(job, prepared_mesh)
         solver_notes = list(result.notes)
@@ -104,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:
             runtime_sec=time.time() - started_at,
             warnings=mesh_warnings + result.warnings,
             notes=solver_notes,
+            boundary_role_diagnostics=boundary_role_diagnostics,
         )
         write_summary(job_dir, summary)
         print("[bem_solver] Solve completed successfully.")
@@ -143,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
                 runtime_sec=time.time() - started_at,
                 warnings=mesh_warnings + [str(exc)],
                 notes=solver_notes,
+                boundary_role_diagnostics=boundary_role_diagnostics,
             )
 
         write_summary(job_dir, summary)

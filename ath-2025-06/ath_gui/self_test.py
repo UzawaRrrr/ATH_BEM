@@ -1,25 +1,28 @@
 from __future__ import annotations
 
 import tempfile
+from importlib.util import find_spec
 from pathlib import Path
 
-from .bem_bridge import build_bem_solver_command, expand_wsl_user_path, quote_bash_path, windows_path_to_wsl
-from .bem_results import describe_bem_status, format_summary_text
-from .bem_state import build_job_payload, default_bem_state
-from .config_core import (
+from .domain.config_core import (
     default_horn_state,
     load_global_state,
     load_horn_state,
     render_global_text,
     render_horn_text,
 )
-from .preview_core import (
+from .domain.specs import ATH_EXE, ROOT_DIR
+from .infrastructure.bem_bridge import build_bem_solver_command, expand_wsl_user_path, quote_bash_path, windows_path_to_wsl
+from .infrastructure.bem_results import describe_bem_status, format_summary_text
+from .infrastructure.bem_state import build_job_payload, default_bem_state
+from .infrastructure.preview_core import (
     build_preview_command,
     describe_group_source,
     find_generated_preview_file,
     iter_output_search_directories,
     load_embedded_preview_data,
 )
+from .tools.check_layering import check_layering, format_layering_report
 from bem_solver.symmetry import build_image_transforms, parse_symmetry_config
 
 
@@ -93,29 +96,30 @@ CustomThing = 42
         assert abec_dir in search_dirs
         assert find_generated_preview_file(temp_root, cfg_file) == abec_dir / "demo.msh"
 
-    with tempfile.TemporaryDirectory() as temp_geo_dir_name:
-        temp_geo_dir = Path(temp_geo_dir_name)
-        geo_file = temp_geo_dir / "mesh.geo"
-        geo_file.write_text(
-            "\n".join(
-                (
-                    "Point(1) = {0, 0, 0, 1};",
-                    "Point(2) = {10, 0, 0, 1};",
-                    "Point(3) = {10, 0, 10, 1};",
-                    "Point(4) = {0, 0, 10, 1};",
-                    "Line(1) = {1, 2};",
-                    "Line(2) = {2, 3};",
-                    "Line(3) = {3, 4};",
-                    "Line(4) = {4, 1};",
-                    "Curve Loop(1) = {1, 2, 3, 4};",
-                    "Plane Surface(1) = {1};",
-                )
-            ),
-            encoding="utf-8",
-        )
-        preview_data = load_embedded_preview_data(geo_file)
-        assert preview_data["node_count"] > 0
-        assert preview_data["edge_count"] > 0
+    if find_spec("gmsh") is not None:
+        with tempfile.TemporaryDirectory() as temp_geo_dir_name:
+            temp_geo_dir = Path(temp_geo_dir_name)
+            geo_file = temp_geo_dir / "mesh.geo"
+            geo_file.write_text(
+                "\n".join(
+                    (
+                        "Point(1) = {0, 0, 0, 1};",
+                        "Point(2) = {10, 0, 0, 1};",
+                        "Point(3) = {10, 0, 10, 1};",
+                        "Point(4) = {0, 0, 10, 1};",
+                        "Line(1) = {1, 2};",
+                        "Line(2) = {2, 3};",
+                        "Line(3) = {3, 4};",
+                        "Line(4) = {4, 1};",
+                        "Curve Loop(1) = {1, 2, 3, 4};",
+                        "Plane Surface(1) = {1};",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            preview_data = load_embedded_preview_data(geo_file)
+            assert preview_data["node_count"] > 0
+            assert preview_data["edge_count"] > 0
 
     preview_command = build_preview_command(
         r"E:\pythonGATH\.venv\Scripts\python.exe E:\pythonGATH\.venv\Scripts\gmsh %f -",
@@ -135,6 +139,10 @@ CustomThing = 42
     bem_command = build_bem_solver_command("/mnt/e/tmp/demo/job.json")
     assert '"${HOME}/venvs/bempp-wsl/bin/python"' in bem_command
     assert "source " not in bem_command
+    assert "/ath_gui/bem_solver/." not in bem_command
+    assert "/bem_solver/." in bem_command
+    assert ATH_EXE.exists()
+    assert (ROOT_DIR / "bem_solver").exists()
 
     with tempfile.TemporaryDirectory() as temp_mesh_dir_name:
         temp_mesh_dir = Path(temp_mesh_dir_name)
@@ -197,4 +205,7 @@ CustomThing = 42
     assert "demo note" in formatted_summary
     assert describe_group_source("gmsh physical groups") == "Gmsh 物理群組"
     assert describe_bem_status("done") == "完成"
+
+    layer_result = check_layering()
+    assert layer_result.ok, format_layering_report(layer_result)
     return 0

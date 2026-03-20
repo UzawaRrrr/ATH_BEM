@@ -1,26 +1,18 @@
 from __future__ import annotations
 
 import argparse
-import json
-import math
 import os
 import subprocess
 import sys
-import threading
-import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import font as tkfont
 from tkinter import filedialog, messagebox, ttk
 
-from .auto_enclosure import derive_auto_enclosure
-from .bem_bridge import BemLaunch, start_bem_solver, windows_path_to_wsl
-from .bem_mesh import format_mesh_info_text, guess_latest_mesh_file, inspect_mesh_file
-from .bem_plot import draw_directivity_view, draw_placeholder as draw_bem_placeholder
-from .bem_results import default_bem_result_dir, describe_bem_status, format_summary_text, load_bem_results
-from .bem_specs import BEM_FIELD_SECTIONS
-from .bem_state import build_job_payload, default_bem_state
-from .config_core import (
+from .application.controllers import BemController, PreviewController, WorkflowController
+from .domain.auto_enclosure import derive_auto_enclosure
+from .domain.bem_specs import BEM_FIELD_SECTIONS
+from .domain.config_core import (
     build_field_hint,
     default_global_state,
     default_horn_state,
@@ -31,18 +23,8 @@ from .config_core import (
     render_global_text,
     render_horn_text,
 )
-from .preview_core import (
-    build_preview_command,
-    compute_output_directory,
-    describe_group_source,
-    find_generated_preview_file,
-    iter_output_search_directories,
-    load_embedded_preview_data,
-)
-from .self_test import run_self_test
-from .specs import (
+from .domain.specs import (
     APP_TITLE,
-    ATH_EXE,
     ATH_GLOBAL_CONFIG,
     ACCENT,
     ACCENT_SOFT,
@@ -60,10 +42,23 @@ from .specs import (
     TEXT,
     FieldSpec,
 )
-from .widgets import ScrollableFrame
+from .infrastructure.bem_bridge import BemLaunch
+from .infrastructure.bem_mesh import guess_latest_mesh_file
+from .infrastructure.bem_state import default_bem_state
+from .infrastructure.preview_core import (
+    build_preview_command,
+    compute_output_directory,
+    describe_group_source,
+    iter_output_search_directories,
+)
+from .presentation.bem_plot import draw_placeholder as draw_bem_placeholder
+from .presentation.opengl_preview import OpenGLPreviewHost, probe_vtk_opengl
+from .presentation.preview_renderer import PreviewRenderer
+from .presentation.widgets import ScrollableFrame
+from .self_test import run_self_test
+from .tools.check_layering import check_layering, format_layering_report
 
 GUI_BUILD_ID = "pythonGATH / ATH GUI 中文版 2026-03-19"
-PREVIEW_GROUP_COLORS = ("#37c8b4", "#f3a712", "#8e7dff", "#ef476f", "#4cc9f0", "#90be6d", "#ffd166", "#ff7b72")
 UI_FONT_CANDIDATES = (
     "Microsoft JhengHei UI",
     "Microsoft JhengHei",
@@ -117,13 +112,21 @@ class AthConfigStudio(tk.Tk):
         self.bem_last_result_dir: Path | None = None
         self.bem_last_log_path: Path | None = None
         self.bem_polar_rows: list[dict[str, float]] = []
+        self.opengl_preview: OpenGLPreviewHost | None = None
+        self.preview_backend_var = tk.StringVar(value="預覽後端：Canvas")
         self.preview_yaw_deg = 32.0
         self.preview_pitch_deg = -18.0
         self.preview_zoom = 1.0
         self.preview_drag_origin: tuple[int, int] | None = None
         self.preview_drag_angles: tuple[float, float] | None = None
+        self.preview_sensitivity_var = tk.DoubleVar(value=1.0)
+        self.preview_sensitivity_label_var = tk.StringVar(value="互動靈敏度 1.00x")
         self.font_family = self._resolve_ui_font_family()
         self._configure_fonts()
+        self.preview_controller = PreviewController(self)
+        self.bem_controller = BemController(self)
+        self.workflow_controller = WorkflowController(self)
+        self.preview_renderer = PreviewRenderer(self)
 
         self._configure_style()
         self._build_shell()
@@ -223,6 +226,28 @@ class AthConfigStudio(tk.Tk):
         style.map("Accent.TButton", background=[("active", "#59dac8"), ("pressed", "#2fb8a5")], foreground=[("disabled", MUTED)])
         style.configure("Tool.TButton", font="AthUiBodyFont", padding=(10, 7), background=BUTTON_BG, foreground=BUTTON_TEXT, bordercolor=BORDER)
         style.map("Tool.TButton", background=[("active", BUTTON_ACTIVE), ("pressed", "#355174")], foreground=[("disabled", MUTED)])
+        style.configure(
+            "Compact.Tool.TButton",
+            font="AthUiHintFont",
+            padding=(7, 3),
+            background=BUTTON_BG,
+            foreground=BUTTON_TEXT,
+            bordercolor=BORDER,
+        )
+        style.map("Compact.Tool.TButton", background=[("active", BUTTON_ACTIVE), ("pressed", "#355174")], foreground=[("disabled", MUTED)])
+        style.configure(
+            "Compact.Accent.TButton",
+            font="AthUiHintFont",
+            padding=(8, 3),
+            background=ACCENT,
+            foreground="#081018",
+            bordercolor=ACCENT,
+        )
+        style.map(
+            "Compact.Accent.TButton",
+            background=[("active", "#59dac8"), ("pressed", "#2fb8a5")],
+            foreground=[("disabled", MUTED)],
+        )
         style.configure("Vertical.TScrollbar", background=CARD_ALT, troughcolor=BG, bordercolor=BG, arrowcolor=TEXT)
 
     def _make_dark_text(self, parent: tk.Misc, *, height: int, wrap: str) -> tk.Text:
@@ -249,37 +274,42 @@ class AthConfigStudio(tk.Tk):
         root = ttk.Frame(self, style="App.TFrame", padding=18)
         root.pack(fill="both", expand=True)
         root.columnconfigure(0, weight=1)
-        root.rowconfigure(2, weight=1)
+        root.rowconfigure(1, weight=1)
 
         header = ttk.Frame(root, style="App.TFrame")
         header.grid(row=0, column=0, sticky="ew")
         header.columnconfigure(0, weight=1)
         header.columnconfigure(1, weight=0)
-        ttk.Label(header, text=APP_TITLE, style="Title.TLabel").grid(row=0, column=0, sticky="w")
+        title_bar = ttk.Frame(header, style="App.TFrame")
+        title_bar.grid(row=0, column=0, sticky="ew")
+        title_bar.columnconfigure(1, weight=1)
+        ttk.Label(title_bar, text=APP_TITLE, style="Title.TLabel").grid(row=0, column=0, sticky="w")
+
+        quick_actions = ttk.Frame(title_bar, style="App.TFrame")
+        quick_actions.grid(row=0, column=1, sticky="w", padx=(12, 0), pady=(2, 0))
+        ttk.Button(quick_actions, text="新增", style="Compact.Tool.TButton", command=self.new_horn_config).grid(row=0, column=0, padx=(0, 4))
+        ttk.Button(quick_actions, text="開啟", style="Compact.Tool.TButton", command=self.open_horn_config).grid(row=0, column=1, padx=(0, 4))
+        ttk.Button(quick_actions, text="儲存", style="Compact.Tool.TButton", command=self.save_horn_config).grid(row=0, column=2, padx=(0, 4))
+        ttk.Button(quick_actions, text="另存", style="Compact.Tool.TButton", command=self.save_horn_config_as).grid(row=0, column=3, padx=(0, 4))
+        ttk.Button(quick_actions, text="存 ath.cfg", style="Compact.Tool.TButton", command=self.save_global_config).grid(row=0, column=4, padx=(0, 4))
+        ttk.Button(quick_actions, text="刷新預覽", style="Compact.Tool.TButton", command=self.refresh_preview).grid(row=0, column=5, padx=(0, 4))
+        ttk.Button(quick_actions, text="Auto ENC", style="Compact.Tool.TButton", command=self.apply_auto_enclosure).grid(row=0, column=6, padx=(0, 4))
+        ttk.Button(quick_actions, text="執行 ATH", style="Compact.Accent.TButton", command=self.run_ath).grid(row=0, column=7, padx=(2, 0))
+
+        subtitle_bar = ttk.Frame(header, style="App.TFrame")
+        subtitle_bar.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        subtitle_bar.columnconfigure(2, weight=1)
         ttk.Label(
-            header,
+            subtitle_bar,
             text="ATH 4.8.2 表單式設定編輯器，整合幾何預覽、BEM 網格檢查與結果追蹤。",
             style="Muted.TLabel",
-        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+        ).grid(row=0, column=0, sticky="w")
+        ttk.Label(subtitle_bar, text="目前號角檔：", style="Muted.TLabel").grid(row=0, column=1, sticky="w", padx=(12, 4))
+        ttk.Label(subtitle_bar, textvariable=self.current_horn_path, style="Muted.TLabel").grid(row=0, column=2, sticky="ew")
         self._build_status_panel(header)
 
-        toolbar = ttk.Frame(root, style="App.TFrame", padding=(0, 12, 0, 10))
-        toolbar.grid(row=1, column=0, sticky="ew")
-        toolbar.columnconfigure(8, weight=1)
-
-        ttk.Button(toolbar, text="新增號角", style="Tool.TButton", command=self.new_horn_config).grid(row=0, column=0, padx=(0, 8))
-        ttk.Button(toolbar, text="開啟號角 CFG", style="Tool.TButton", command=self.open_horn_config).grid(row=0, column=1, padx=(0, 8))
-        ttk.Button(toolbar, text="儲存號角", style="Tool.TButton", command=self.save_horn_config).grid(row=0, column=2, padx=(0, 8))
-        ttk.Button(toolbar, text="另存號角", style="Tool.TButton", command=self.save_horn_config_as).grid(row=0, column=3, padx=(0, 8))
-        ttk.Button(toolbar, text="儲存 ath.cfg", style="Tool.TButton", command=self.save_global_config).grid(row=0, column=4, padx=(0, 8))
-        ttk.Button(toolbar, text="更新文字預覽", style="Tool.TButton", command=self.refresh_preview).grid(row=0, column=5, padx=(0, 8))
-        ttk.Button(toolbar, text="執行 ATH", style="Accent.TButton", command=self.run_ath).grid(row=0, column=6, padx=(0, 12))
-        ttk.Button(toolbar, text="Apply Auto Enclosure", style="Tool.TButton", command=self.apply_auto_enclosure).grid(row=0, column=7, padx=(0, 8))
-        ttk.Label(toolbar, text="目前號角檔：", style="Muted.TLabel").grid(row=1, column=0, columnspan=2, sticky="w", pady=(10, 0))
-        ttk.Label(toolbar, textvariable=self.current_horn_path, style="Muted.TLabel").grid(row=1, column=2, columnspan=7, sticky="w", pady=(10, 0))
-
         work_area = ttk.Panedwindow(root, orient="horizontal")
-        work_area.grid(row=2, column=0, sticky="nsew")
+        work_area.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
 
         controls_host = ttk.Frame(work_area, style="App.TFrame")
         controls_host.columnconfigure(0, weight=1)
@@ -331,7 +361,7 @@ class AthConfigStudio(tk.Tk):
         self._build_sections()
 
         footer = ttk.Frame(root, style="App.TFrame", padding=(0, 8, 0, 0))
-        footer.grid(row=3, column=0, sticky="ew")
+        footer.grid(row=2, column=0, sticky="ew")
         footer.columnconfigure(0, weight=1)
         ttk.Label(footer, textvariable=self.status_var, style="Muted.TLabel").grid(row=0, column=0, sticky="w")
 
@@ -473,12 +503,23 @@ class AthConfigStudio(tk.Tk):
 
         toolbar = ttk.Frame(preview_card, style="Card.TFrame")
         toolbar.grid(row=0, column=0, sticky="ew")
-        toolbar.columnconfigure(5, weight=1)
+        toolbar.columnconfigure(8, weight=1)
         ttk.Button(toolbar, text="載入最新輸出", style="Tool.TButton", command=self.load_latest_output_preview).grid(row=0, column=0, padx=(0, 8))
         ttk.Button(toolbar, text="外部開啟", style="Tool.TButton", command=self.open_current_preview_external).grid(row=0, column=1, padx=(0, 8))
         ttk.Button(toolbar, text="重設視角", style="Tool.TButton", command=self._reset_preview_view).grid(row=0, column=2, padx=(0, 8))
         ttk.Label(toolbar, textvariable=self.preview_view_var, style="Hint.TLabel").grid(row=0, column=3, padx=(0, 12), sticky="w")
-        ttk.Label(toolbar, textvariable=self.preview_path_var, style="Hint.TLabel").grid(row=0, column=5, sticky="e")
+        ttk.Label(toolbar, textvariable=self.preview_backend_var, style="Hint.TLabel").grid(row=0, column=4, padx=(0, 12), sticky="w")
+        ttk.Label(toolbar, textvariable=self.preview_sensitivity_label_var, style="Hint.TLabel").grid(row=0, column=5, padx=(0, 6), sticky="w")
+        ttk.Scale(
+            toolbar,
+            from_=0.3,
+            to=2.5,
+            orient="horizontal",
+            variable=self.preview_sensitivity_var,
+            command=self._on_preview_sensitivity_change,
+            length=150,
+        ).grid(row=0, column=6, padx=(0, 10), sticky="w")
+        ttk.Label(toolbar, textvariable=self.preview_path_var, style="Hint.TLabel").grid(row=0, column=8, sticky="e")
 
         info = ttk.Frame(preview_card, style="Card.TFrame")
         info.grid(row=1, column=0, sticky="ew", pady=(10, 10))
@@ -491,22 +532,35 @@ class AthConfigStudio(tk.Tk):
             wraplength=1040,
         ).grid(row=0, column=0, sticky="w")
 
-        self.embedded_preview_canvas = tk.Canvas(
-            preview_card,
-            background=INPUT_BG,
-            highlightthickness=1,
-            highlightbackground=BORDER,
-            relief="flat",
-        )
-        self.embedded_preview_canvas.grid(row=2, column=0, sticky="nsew")
-        self.embedded_preview_canvas.bind("<Configure>", self._redraw_embedded_preview)
-        self.embedded_preview_canvas.bind("<ButtonPress-1>", self._start_preview_drag)
-        self.embedded_preview_canvas.bind("<B1-Motion>", self._drag_preview_view)
-        self.embedded_preview_canvas.bind("<ButtonRelease-1>", self._end_preview_drag)
-        self.embedded_preview_canvas.bind("<Double-Button-1>", self._reset_preview_view)
-        self.embedded_preview_canvas.bind("<MouseWheel>", self._zoom_preview_view)
-        self.embedded_preview_canvas.bind("<Button-4>", self._zoom_preview_view)
-        self.embedded_preview_canvas.bind("<Button-5>", self._zoom_preview_view)
+        preview_viewport = ttk.Frame(preview_card, style="Card.TFrame")
+        preview_viewport.grid(row=2, column=0, sticky="nsew")
+        preview_viewport.columnconfigure(0, weight=1)
+        preview_viewport.rowconfigure(0, weight=1)
+
+        self.opengl_preview = OpenGLPreviewHost(preview_viewport)
+        self.embedded_preview_canvas: tk.Canvas | None = None
+        if self.opengl_preview.available:
+            self.preview_backend_var.set("預覽後端：OpenGL (VTK)")
+            self.preview_view_var.set("視角：由 OpenGL 視窗滑鼠控制（拖曳旋轉 / 滾輪縮放）")
+        else:
+            self.preview_backend_var.set(f"預覽後端：Canvas fallback（{self.opengl_preview.message}）")
+            self.embedded_preview_canvas = tk.Canvas(
+                preview_viewport,
+                background=INPUT_BG,
+                highlightthickness=1,
+                highlightbackground=BORDER,
+                relief="flat",
+            )
+            self.embedded_preview_canvas.grid(row=0, column=0, sticky="nsew")
+            self.embedded_preview_canvas.bind("<Configure>", self._redraw_embedded_preview)
+            self.embedded_preview_canvas.bind("<ButtonPress-1>", self._start_preview_drag)
+            self.embedded_preview_canvas.bind("<B1-Motion>", self._drag_preview_view)
+            self.embedded_preview_canvas.bind("<ButtonRelease-1>", self._end_preview_drag)
+            self.embedded_preview_canvas.bind("<Double-Button-1>", self._reset_preview_view)
+            self.embedded_preview_canvas.bind("<MouseWheel>", self._zoom_preview_view)
+            self.embedded_preview_canvas.bind("<Button-4>", self._zoom_preview_view)
+            self.embedded_preview_canvas.bind("<Button-5>", self._zoom_preview_view)
+        self._apply_preview_sensitivity()
         ttk.Label(
             preview_card,
             textvariable=self.preview_group_var,
@@ -912,7 +966,9 @@ class AthConfigStudio(tk.Tk):
             "已套用 Auto Enclosure："
             f"Spacing={updated_state.get('ENCLOSURE.Spacing', '')} | "
             f"Depth={updated_state.get('ENCLOSURE.Depth', '')} | "
-            f"EdgeRadius={updated_state.get('ENCLOSURE.EdgeRadius', '')}"
+            f"EdgeRadius={updated_state.get('ENCLOSURE.EdgeRadius', '')} | "
+            f"FrontRes={updated_state.get('ENCLOSURE.FrontResolution', '')} | "
+            f"BackRes={updated_state.get('ENCLOSURE.BackResolution', '')}"
         )
         self._update_runtime_status()
 
@@ -922,269 +978,63 @@ class AthConfigStudio(tk.Tk):
             self.workspace_notebook.select(tab)
 
     def _update_preview_view_var(self) -> None:
-        self.preview_view_var.set(
-            f"視角：yaw {self.preview_yaw_deg:.0f}°, pitch {self.preview_pitch_deg:.0f}°, zoom {self.preview_zoom:.2f}x"
-        )
+        self.preview_renderer.update_preview_view_var()
+
+    def _on_preview_sensitivity_change(self, _value: str | None = None) -> None:
+        self._apply_preview_sensitivity()
+
+    def _apply_preview_sensitivity(self) -> None:
+        sensitivity = max(0.3, min(2.5, float(self.preview_sensitivity_var.get())))
+        self.preview_sensitivity_var.set(sensitivity)
+        self.preview_sensitivity_label_var.set(f"互動靈敏度 {sensitivity:.2f}x")
+        self.preview_renderer.set_interaction_sensitivity(sensitivity)
+        if self.opengl_preview is not None and self.opengl_preview.available:
+            self.opengl_preview.set_interaction_sensitivity(sensitivity)
 
     def _reset_preview_view(self, _event: tk.Event | None = None) -> None:
-        self.preview_yaw_deg = 32.0
-        self.preview_pitch_deg = -18.0
-        self.preview_zoom = 1.0
-        self.preview_drag_origin = None
-        self.preview_drag_angles = None
-        self._update_preview_view_var()
-        self._redraw_embedded_preview()
+        self.preview_renderer.reset_preview_view(_event)
 
     def _start_preview_drag(self, event: tk.Event) -> None:
-        self.preview_drag_origin = (int(event.x), int(event.y))
-        self.preview_drag_angles = (self.preview_yaw_deg, self.preview_pitch_deg)
+        self.preview_renderer.start_preview_drag(event)
 
     def _drag_preview_view(self, event: tk.Event) -> None:
-        if self.preview_drag_origin is None or self.preview_drag_angles is None:
-            return
-        dx = int(event.x) - self.preview_drag_origin[0]
-        dy = int(event.y) - self.preview_drag_origin[1]
-        self.preview_yaw_deg = self.preview_drag_angles[0] + (dx * 0.45)
-        self.preview_pitch_deg = max(-88.0, min(88.0, self.preview_drag_angles[1] - (dy * 0.35)))
-        self._update_preview_view_var()
-        self._redraw_embedded_preview()
+        self.preview_renderer.drag_preview_view(event)
 
     def _end_preview_drag(self, _event: tk.Event) -> None:
-        self.preview_drag_origin = None
-        self.preview_drag_angles = None
+        self.preview_renderer.end_preview_drag(_event)
 
     def _zoom_preview_view(self, event: tk.Event) -> None:
-        delta = 0
-        if hasattr(event, "delta") and event.delta:
-            delta = 1 if event.delta > 0 else -1
-        elif getattr(event, "num", None) == 4:
-            delta = 1
-        elif getattr(event, "num", None) == 5:
-            delta = -1
-        if delta == 0:
-            return
-        factor = 1.12 if delta > 0 else 1 / 1.12
-        self.preview_zoom = max(0.25, min(6.0, self.preview_zoom * factor))
-        self._update_preview_view_var()
-        self._redraw_embedded_preview()
+        self.preview_renderer.zoom_preview_view(event)
 
     def _project_preview_points(self, points: dict[int, tuple[float, float, float]]) -> tuple[dict[int, tuple[float, float]], tuple[float, float, float, float]]:
-        xs = [coords[0] for coords in points.values()]
-        ys = [coords[1] for coords in points.values()]
-        zs = [coords[2] for coords in points.values()]
-        center_x = (min(xs) + max(xs)) / 2.0
-        center_y = (min(ys) + max(ys)) / 2.0
-        center_z = (min(zs) + max(zs)) / 2.0
-
-        projected: dict[int, tuple[float, float]] = {}
-        us: list[float] = []
-        vs: list[float] = []
-        for tag, (x, y, z) in points.items():
-            u, v = self._project_preview_vector((x - center_x, y - center_y, z - center_z))
-            projected[tag] = (u, v)
-            us.append(u)
-            vs.append(v)
-
-        return projected, (min(us), max(us), min(vs), max(vs))
+        return self.preview_renderer.project_preview_points(points)
 
     def _project_preview_vector(self, vector: tuple[float, float, float]) -> tuple[float, float]:
-        """Project a 3D vector to preview canvas UV coordinates using current view angles."""
-        yaw = math.radians(self.preview_yaw_deg)
-        pitch = math.radians(self.preview_pitch_deg)
-        cos_yaw = math.cos(yaw)
-        sin_yaw = math.sin(yaw)
-        cos_pitch = math.cos(pitch)
-        sin_pitch = math.sin(pitch)
-
-        x, y, z = vector
-        x1 = (cos_yaw * x) - (sin_yaw * y)
-        y1 = (sin_yaw * x) + (cos_yaw * y)
-        z1 = z
-
-        y2 = (cos_pitch * y1) - (sin_pitch * z1)
-        z2 = (sin_pitch * y1) + (cos_pitch * z1)
-        return x1, z2
+        return self.preview_renderer.project_preview_vector(vector)
 
     def _draw_preview_axis_triad(self, canvas: tk.Canvas, width: int, height: int) -> None:
-        """Draw a small XYZ axis triad that follows current preview view rotation."""
-        origin_x = 58
-        origin_y = height - 54
-        axis_scale = 34
-        canvas.create_rectangle(origin_x - 34, origin_y - 34, origin_x + 66, origin_y + 26, outline=BORDER)
-
-        axes = (
-            ("X", (1.0, 0.0, 0.0), "#ff6b6b"),
-            ("Y", (0.0, 1.0, 0.0), "#51cf66"),
-            ("Z", (0.0, 0.0, 1.0), "#4dabf7"),
-        )
-        for label, vector, color in axes:
-            u, v = self._project_preview_vector(vector)
-            end_x = origin_x + (u * axis_scale)
-            end_y = origin_y - (v * axis_scale)
-            canvas.create_line(origin_x, origin_y, end_x, end_y, fill=color, width=2, arrow=tk.LAST)
-            canvas.create_text(end_x + 8, end_y, text=label, fill=color, anchor="w", font="AthUiCanvasSmallFont")
-        canvas.create_oval(origin_x - 2, origin_y - 2, origin_x + 2, origin_y + 2, fill=TEXT, outline="")
+        self.preview_renderer.draw_preview_axis_triad(canvas, width, height)
 
     def _draw_preview_placeholder(self, message: str) -> None:
-        canvas = self.embedded_preview_canvas
-        canvas.delete("all")
-        width = max(canvas.winfo_width(), 200)
-        height = max(canvas.winfo_height(), 160)
-        canvas.create_text(
-            width / 2,
-            height / 2,
-            text=message,
-            fill=MUTED,
-            font="AthUiCanvasFont",
-            width=max(width - 40, 160),
-            justify="center",
-        )
+        self.preview_renderer.draw_preview_placeholder(message)
 
     def _redraw_embedded_preview(self, _event: tk.Event | None = None) -> None:
-        canvas = self.embedded_preview_canvas
-        if self.preview_geometry is None:
-            self._draw_preview_placeholder("請執行 ATH，或載入最新輸出以在此顯示幾何。")
-            return
-
-        canvas.delete("all")
-        width = max(canvas.winfo_width(), 200)
-        height = max(canvas.winfo_height(), 160)
-        pad = 28
-
-        points = self.preview_geometry["points"]
-        edges = self.preview_geometry["edges"]
-        projected, (min_u, max_u, min_v, max_v) = self._project_preview_points(points)
-
-        span_u = max(max_u - min_u, 1e-6)
-        span_v = max(max_v - min_v, 1e-6)
-        base_scale = min((width - 2 * pad) / span_u, (height - 2 * pad) / span_v)
-        scale = base_scale * self.preview_zoom
-        offset_u = (width - (span_u * scale)) / 2
-        offset_v = (height - (span_v * scale)) / 2
-
-        max_edges = 12000
-        group_edges = {
-            int(group_id): list(group_data)
-            for group_id, group_data in dict(self.preview_geometry.get("group_edges", {})).items()
-        }
-        if group_edges:
-            sorted_groups = sorted(group_edges)
-            color_map = {
-                group_id: PREVIEW_GROUP_COLORS[index % len(PREVIEW_GROUP_COLORS)]
-                for index, group_id in enumerate(sorted_groups)
-            }
-            for group_id in sorted_groups:
-                grouped = group_edges[group_id]
-                step = max(1, len(grouped) // max_edges) if len(grouped) > max_edges else 1
-                for index, (a, b) in enumerate(grouped):
-                    if index % step != 0:
-                        continue
-                    u1, v1 = projected[a]
-                    u2, v2 = projected[b]
-                    x1 = offset_u + ((u1 - min_u) * scale)
-                    y1 = height - (offset_v + ((v1 - min_v) * scale))
-                    x2 = offset_u + ((u2 - min_u) * scale)
-                    y2 = height - (offset_v + ((v2 - min_v) * scale))
-                    canvas.create_line(x1, y1, x2, y2, fill=color_map[group_id], width=1)
-
-            legend_x = 14
-            legend_y = 14
-            canvas.create_rectangle(legend_x, legend_y, legend_x + 188, legend_y + (22 * len(sorted_groups)) + 12, outline=BORDER)
-            for index, group_id in enumerate(sorted_groups[:8]):
-                y = legend_y + 14 + (index * 22)
-                canvas.create_line(legend_x + 10, y, legend_x + 32, y, fill=color_map[group_id], width=3)
-                canvas.create_text(legend_x + 40, y, text=f"群組 {group_id}", fill=TEXT, anchor="w", font="AthUiCanvasSmallFont")
-        else:
-            step = max(1, len(edges) // max_edges) if len(edges) > max_edges else 1
-            for index, (a, b) in enumerate(edges):
-                if index % step != 0:
-                    continue
-                u1, v1 = projected[a]
-                u2, v2 = projected[b]
-                x1 = offset_u + ((u1 - min_u) * scale)
-                y1 = height - (offset_v + ((v1 - min_v) * scale))
-                x2 = offset_u + ((u2 - min_u) * scale)
-                y2 = height - (offset_v + ((v2 - min_v) * scale))
-                canvas.create_line(x1, y1, x2, y2, fill=ACCENT, width=1)
-
-        canvas.create_rectangle(1, 1, width - 2, height - 2, outline=BORDER)
-        canvas.create_text(
-            width - 12,
-            12,
-            text=self.preview_view_var.get(),
-            fill=MUTED,
-            anchor="ne",
-            font="AthUiCanvasSmallFont",
-        )
-        self._draw_preview_axis_triad(canvas, width, height)
+        self.preview_renderer.redraw_embedded_preview(_event)
 
     def _apply_embedded_preview_error(self, request_id: int, preview_file: Path, exc: Exception) -> None:
-        if request_id != self.preview_request_id:
-            return
-        self.preview_geometry = None
-        self.preview_path_var.set(str(preview_file))
-        self.preview_status_var.set("預覽狀態：載入失敗")
-        self.group_status_var.set("分群狀態：無法分析")
-        self.preview_group_var.set("分群摘要：預覽載入失敗，無法取得群組資訊。")
-        self.preview_meta_var.set(f"內嵌預覽載入失敗：{exc}")
-        self._draw_preview_placeholder("內嵌預覽載入失敗；你仍可使用外部程式開啟該檔案。")
-        self._update_runtime_status()
+        self.preview_controller._apply_embedded_preview_error(request_id, preview_file, exc)
 
     def _apply_embedded_preview_data(self, request_id: int, preview_file: Path, data: dict[str, object]) -> None:
-        if request_id != self.preview_request_id:
-            return
-        self.preview_geometry = data
-        self.last_generated_preview_file = preview_file
-        bbox = data["bbox"]
-        self.preview_path_var.set(str(preview_file))
-        self.preview_status_var.set("預覽狀態：已載入")
-        group_source = describe_group_source(str(data.get("group_source", "unknown")))
-        self.preview_meta_var.set(
-            f"{data['file_name']} | 維度 {data['mesh_dimension']} | 節點 {data['node_count']} | "
-            f"邊線 {data['edge_count']} | 元素 {data['element_count']} | 群組來源 {group_source} | "
-            f"bbox x[{bbox[0]:.1f},{bbox[1]:.1f}] y[{bbox[2]:.1f},{bbox[3]:.1f}] z[{bbox[4]:.1f},{bbox[5]:.1f}]"
-        )
-        self._update_group_status_from_preview_data(preview_file, data)
-        self._redraw_embedded_preview()
-        self._select_workspace_tab("Geometry3D")
+        self.preview_controller._apply_embedded_preview_data(request_id, preview_file, data)
 
     def _load_embedded_preview_worker(self, request_id: int, preview_file: Path) -> None:
-        try:
-            data = load_embedded_preview_data(preview_file)
-        except Exception as exc:
-            self._apply_embedded_preview_error(request_id, preview_file, exc)
-            return
-        self._apply_embedded_preview_data(request_id, preview_file, data)
+        self.preview_controller._load_embedded_preview_worker(request_id, preview_file)
 
     def load_embedded_preview_file(self, preview_file: Path) -> None:
-        self.preview_request_id += 1
-        request_id = self.preview_request_id
-        self.preview_geometry = None
-        self.last_generated_preview_file = preview_file
-        self.preview_path_var.set(str(preview_file))
-        self.preview_status_var.set("預覽狀態：載入中")
-        self.group_status_var.set("分群狀態：分析中")
-        self.preview_group_var.set("分群摘要：正在分析預覽檔。")
-        self.preview_meta_var.set("正在載入內嵌預覽...")
-        self._draw_preview_placeholder("正在將幾何匯入內嵌預覽...")
-        self._update_runtime_status()
-        self.after(10, lambda: self._load_embedded_preview_worker(request_id, preview_file))
+        self.preview_controller.load_embedded_preview_file(preview_file)
 
     def load_latest_output_preview(self) -> None:
-        cfg_path = self.current_horn_path.get().strip()
-        if not cfg_path:
-            messagebox.showinfo(APP_TITLE, "請先儲存或開啟號角設定檔，才能解析輸出目錄。")
-            return
-        preview_file = find_generated_preview_file(
-            compute_output_directory(self.collect_global_state(), self.collect_horn_state(), Path(cfg_path)),
-            Path(cfg_path),
-        )
-        if preview_file is None:
-            messagebox.showinfo(APP_TITLE, "目前專案尚未找到可預覽的 .geo / .msh / .stl 輸出檔。")
-            return
-        self.load_embedded_preview_file(preview_file)
-        self.autofill_bem_mesh(set_status=False)
-        self.status_var.set(f"已載入內嵌預覽：{preview_file}")
+        self.workflow_controller.load_latest_output_preview()
 
     def open_current_preview_external(self) -> None:
         if self.last_generated_preview_file is None:
@@ -1220,99 +1070,19 @@ class AthConfigStudio(tk.Tk):
         return None
 
     def inspect_bem_mesh(self) -> None:
-        state = self.collect_bem_state()
-        mesh_path_text = str(state.get("BEM.MeshFile", "")).strip()
-        mesh_path = Path(mesh_path_text) if mesh_path_text else self.autofill_bem_mesh(set_status=False)
-        if mesh_path is None or not Path(mesh_path).exists():
-            messagebox.showerror(
-                APP_TITLE,
-                "目前沒有可供 BEM 檢查的 `.msh` 檔。\n\n請啟用 `Output.MSH = 1` 並執行 ATH，或手動指定網格檔。",
-            )
-            return
-
-        try:
-            mesh_info = inspect_mesh_file(
-                Path(mesh_path),
-                mesh_scale_to_meter=float(state.get("BEM.MeshScaleToMeter", 0.001)),
-            )
-        except Exception as exc:
-            self.bem_status_var.set("錯誤")
-            self.group_status_var.set("分群狀態：網格檢查失敗")
-            self.status_var.set("BEM 網格檢查失敗。")
-            messagebox.showerror(APP_TITLE, f"檢查網格失敗：\n{exc}")
-            return
-
-        self._set_text_widget(self.bem_mesh_text, format_mesh_info_text(mesh_info))
-        self.bem_status_var.set("閒置")
-        groups = [int(value) for value in mesh_info.get("detected_groups", [])]
-        source_label = describe_group_source(str(mesh_info.get("group_source", "unknown")))
-        self.group_status_var.set(
-            f"分群狀態：已偵測 {len(groups)} 個群組（{source_label}）"
-        )
-        self.preview_group_var.set(
-            self._format_group_summary(
-                groups,
-                group_source=str(mesh_info.get("group_source", "unknown")),
-                count_map={str(key): int(value) for key, value in dict(mesh_info.get("element_count_per_group", {})).items()},
-            )
-        )
-        self.status_var.set(f"已檢查 BEM 網格：{Path(mesh_path).name}")
-        self.mesh_status_var.set(str(mesh_path))
-        self._update_runtime_status()
-        self._select_workspace_tab("MeshInfo")
+        self.bem_controller.inspect_bem_mesh()
 
     def _resolve_bem_result_dir(self) -> Path | None:
-        cfg_path = self.current_horn_path.get().strip()
-        if not cfg_path:
-            return self.bem_last_result_dir
-        output_dir = compute_output_directory(self.collect_global_state(), self.collect_horn_state(), Path(cfg_path))
-        return default_bem_result_dir(output_dir)
+        return self.bem_controller.resolve_bem_result_dir()
 
     def _refresh_bem_plot(self) -> None:
-        caption = draw_directivity_view(
-            self.bem_polar_canvas,
-            self.bem_polar_rows,
-            mode=str(self.bem_plot_mode_var.get()).strip() or "band_map",
-            preferred_hz=1000.0,
-            log_x=bool(self.bem_plot_log_x_var.get()),
-        )
-        if caption:
-            self.bem_plot_caption_var.set(caption)
+        self.bem_controller.refresh_bem_plot()
 
     def open_bem_solver_log(self) -> None:
-        if self.bem_last_log_path is None or not self.bem_last_log_path.exists():
-            messagebox.showinfo(APP_TITLE, "目前尚無可開啟的 BEM 求解器日誌。")
-            return
-        try:
-            os.startfile(str(self.bem_last_log_path))
-        except OSError as exc:
-            messagebox.showerror(APP_TITLE, f"無法開啟求解器日誌：\n{exc}")
+        self.bem_controller.open_bem_solver_log()
 
     def load_bem_results(self, result_dir: Path | None = None) -> None:
-        target_dir = result_dir or self._resolve_bem_result_dir()
-        if target_dir is None:
-            messagebox.showinfo(APP_TITLE, "目前沒有可載入的 BEM 結果目錄。")
-            return
-        try:
-            results = load_bem_results(target_dir)
-        except Exception as exc:
-            messagebox.showerror(APP_TITLE, f"載入 BEM 結果失敗：\n{exc}")
-            return
-
-        self.bem_last_result_dir = target_dir
-        self.bem_last_log_path = Path(results["log_path"])
-        self.bem_polar_rows = list(results["polar_rows"])
-        self._set_text_widget(self.bem_summary_text, format_summary_text(results))
-        if results["mesh_info"]:
-            self._set_text_widget(self.bem_mesh_text, format_mesh_info_text(results["mesh_info"]))
-        else:
-            self._set_text_widget(self.bem_mesh_text, "這次 BEM 執行沒有找到 mesh_info.json。")
-        self.bem_status_var.set(describe_bem_status(results["summary"].get("status", "done")))
-        self.bem_result_path_var.set(str(target_dir))
-        self._refresh_bem_plot()
-        self.status_var.set(f"已載入 BEM 結果：{target_dir}")
-        self._update_runtime_status()
-        self._select_workspace_tab("Polar")
+        self.bem_controller.load_bem_results(result_dir)
 
     def _open_generated_preview(self, preview_file: Path, mesh_cmd: str) -> bool:
         command = build_preview_command(mesh_cmd, preview_file)
@@ -1325,165 +1095,53 @@ class AthConfigStudio(tk.Tk):
             return False
         return True
 
-    def _watch_bem_process(self, launch: BemLaunch, result_dir: Path) -> None:
-        return_code = launch.process.wait()
-        launch.log_stream.close()
-        if return_code == 0:
-            for _ in range(40):
-                if (result_dir / "summary.json").exists():
-                    break
-                time.sleep(0.25)
-        self.after(0, lambda: self._finish_bem_run(return_code, result_dir))
-
-    def _finish_bem_run(self, return_code: int, result_dir: Path) -> None:
-        self.bem_launch = None
-        summary_path = result_dir / "summary.json"
-        if summary_path.exists():
-            try:
-                self.load_bem_results(result_dir)
-            except Exception:
-                pass
-
-        if return_code == 0:
-            self.bem_status_var.set("完成")
-            self.status_var.set(f"BEM 執行完成，結果已從 {result_dir} 載入。")
-            self._update_runtime_status()
-            return
-
-        self.bem_status_var.set("錯誤")
-        self.status_var.set(f"BEM 執行失敗，退出碼 {return_code}。請檢查 solver.log。")
-        self._update_runtime_status()
-
     def run_bempp(self) -> None:
-        if self.bem_launch is not None and self.bem_launch.process.poll() is None:
-            messagebox.showinfo(APP_TITLE, "BEM 正在執行中，請等待完成。")
-            return
-
-        if not self.save_global_config(silent=True):
-            return
-        if not self.save_horn_config():
-            return
-
-        cfg_path = self.current_horn_path.get().strip()
-        if not cfg_path:
-            messagebox.showerror(APP_TITLE, "執行 BEM 前請先儲存目前號角設定。")
-            return
-
-        bem_state = self.collect_bem_state()
-        mesh_path_text = str(bem_state.get("BEM.MeshFile", "")).strip()
-        mesh_file = Path(mesh_path_text) if mesh_path_text else self.autofill_bem_mesh(set_status=False)
-        if mesh_file is None or not Path(mesh_file).exists():
-            messagebox.showerror(
-                APP_TITLE,
-                "目前沒有可供 BEM 使用的 `.msh` 檔。\n\n請啟用 `Output.MSH = 1` 並執行 ATH，或手動指定網格檔。",
-            )
-            return
-
-        global_state = self.collect_global_state()
-        horn_state = self.collect_horn_state()
-        output_dir = compute_output_directory(global_state, horn_state, Path(cfg_path))
-        result_dir = default_bem_result_dir(output_dir)
-        job_file = result_dir / "job.json"
-        log_file = result_dir / "solver.log"
-
-        try:
-            payload = build_job_payload(bem_state, Path(mesh_file), windows_path_to_wsl(Path(mesh_file)))
-            result_dir.mkdir(parents=True, exist_ok=True)
-            job_file.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
-            self.bem_launch = start_bem_solver(job_file, log_file)
-        except Exception as exc:
-            self.bem_status_var.set("錯誤")
-            messagebox.showerror(APP_TITLE, f"啟動 BEM 失敗：\n{exc}")
-            return
-
-        self.bem_last_result_dir = result_dir
-        self.bem_last_log_path = log_file
-        self.bem_result_path_var.set(str(result_dir))
-        self.bem_status_var.set("執行中")
-        self.mesh_status_var.set(str(mesh_file))
-        self.status_var.set(f"已啟動 BEM 求解：{Path(mesh_file).name}，結果將寫入 {result_dir}。")
-        self._update_runtime_status()
-        threading.Thread(
-            target=self._watch_bem_process,
-            args=(self.bem_launch, result_dir),
-            daemon=True,
-        ).start()
-
-    def _finish_ath_run(self, return_code: int, output_dir: Path, cfg_path: Path) -> None:
-        self.ath_process = None
-        if return_code != 0:
-            self.preview_status_var.set("預覽狀態：ATH 產生失敗")
-            self.status_var.set(f"ATH 已結束，退出碼 {return_code}。")
-            self._update_runtime_status()
-            return
-
-        preview_file = find_generated_preview_file(output_dir, cfg_path)
-        if preview_file is None:
-            self.preview_status_var.set("預覽狀態：找不到輸出檔")
-            self.status_var.set(f"ATH 已完成，但在 {output_dir} 找不到可預覽的輸出檔。")
-            self._update_runtime_status()
-            return
-
-        self.load_embedded_preview_file(preview_file)
-        self.autofill_bem_mesh(set_status=False)
-        self.status_var.set(f"ATH 已完成，已載入預覽：{preview_file.name}")
-        self._update_runtime_status()
-
-    def _watch_ath_process(self, process: subprocess.Popen[bytes], output_dir: Path, cfg_path: Path) -> None:
-        return_code = process.wait()
-        if return_code == 0:
-            for _ in range(20):
-                if find_generated_preview_file(output_dir, cfg_path) is not None:
-                    break
-                time.sleep(0.25)
-        self.after(0, lambda: self._finish_ath_run(return_code, output_dir, cfg_path))
+        self.workflow_controller.run_bempp()
 
     def run_ath(self) -> None:
-        if not ATH_EXE.exists():
-            messagebox.showerror(APP_TITLE, f"找不到 ATH 執行檔：\n{ATH_EXE}")
-            return
-        if self.ath_process is not None and self.ath_process.poll() is None:
-            messagebox.showinfo(APP_TITLE, "ATH 正在執行中，請等待完成。")
-            return
+        self.workflow_controller.run_ath()
 
-        global_state = self.collect_global_state()
-        horn_state = self.collect_horn_state()
-        if not self.save_global_config(silent=True):
-            return
-        if not self.save_horn_config():
-            return
-
-        cfg_path = self.current_horn_path.get().strip()
-        if not cfg_path:
-            messagebox.showerror(APP_TITLE, "目前沒有可執行的號角設定檔。")
-            return
-
-        cfg_file = Path(cfg_path)
-        output_dir = compute_output_directory(global_state, horn_state, cfg_file)
-        flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
-        try:
-            self.ath_process = subprocess.Popen([str(ATH_EXE), cfg_path], cwd=str(ROOT_DIR), creationflags=flags)
-        except OSError as exc:
-            messagebox.showerror(APP_TITLE, f"啟動 ath.exe 失敗：\n{exc}")
-            return
-
-        threading.Thread(
-            target=self._watch_ath_process,
-            args=(self.ath_process, output_dir, cfg_file),
-            daemon=True,
-        ).start()
-        self.preview_status_var.set("預覽狀態：ATH 執行中")
-        self.status_var.set(f"已啟動 ATH：{cfg_path}。完成後將自動載入預覽。")
-        self._update_runtime_status()
+    def destroy(self) -> None:  # type: ignore[override]
+        if self.opengl_preview is not None:
+            self.opengl_preview.shutdown()
+        super().destroy()
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=APP_TITLE)
     parser.add_argument("--self-test", action="store_true", help="Run parser / renderer self-tests and exit.")
+    parser.add_argument("--check-opengl", action="store_true", help="Probe VTK/OpenGL runtime and Tk bridge status, then exit.")
+    parser.add_argument("--check-layering", action="store_true", help="Validate architecture layer import boundaries and exit.")
     args = parser.parse_args(argv)
 
     if args.self_test:
         return run_self_test()
+    if args.check_opengl:
+        result = probe_vtk_opengl()
+        print("vtk_available =", result.vtk_available)
+        print("runtime_available =", result.runtime_available)
+        print("tk_bridge_available =", result.tk_bridge_available)
+        print("has_rendering_tk_dll =", result.has_rendering_tk_dll)
+        if result.dll_search_dirs:
+            print("dll_search_dirs =")
+            for directory in result.dll_search_dirs:
+                print("  -", directory)
+        if result.vendor:
+            print("vendor =", result.vendor)
+        if result.renderer:
+            print("renderer =", result.renderer)
+        if result.version:
+            print("version =", result.version)
+        if result.runtime_error:
+            print("runtime_error =", result.runtime_error)
+        if result.tk_bridge_error:
+            print("tk_bridge_error =", result.tk_bridge_error)
+        print("summary =", result.summary())
+        return 0
+    if args.check_layering:
+        result = check_layering()
+        print(format_layering_report(result))
+        return 0 if result.ok else 1
 
     app = AthConfigStudio()
     app.mainloop()
