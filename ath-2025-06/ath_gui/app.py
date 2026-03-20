@@ -121,6 +121,7 @@ class AthConfigStudio(tk.Tk):
         self.preview_drag_angles: tuple[float, float] | None = None
         self.preview_sensitivity_var = tk.DoubleVar(value=1.0)
         self.preview_sensitivity_label_var = tk.StringVar(value="互動靈敏度 1.00x")
+        self.preview_show_normals_var = tk.BooleanVar(value=True)
         self.font_family = self._resolve_ui_font_family()
         self._configure_fonts()
         self.preview_controller = PreviewController(self)
@@ -519,6 +520,12 @@ class AthConfigStudio(tk.Tk):
             command=self._on_preview_sensitivity_change,
             length=150,
         ).grid(row=0, column=6, padx=(0, 10), sticky="w")
+        ttk.Checkbutton(
+            toolbar,
+            text="顯示分群法向",
+            variable=self.preview_show_normals_var,
+            command=self._on_preview_normals_toggle,
+        ).grid(row=0, column=7, padx=(0, 10), sticky="w")
         ttk.Label(toolbar, textvariable=self.preview_path_var, style="Hint.TLabel").grid(row=0, column=8, sticky="e")
 
         info = ttk.Frame(preview_card, style="Card.TFrame")
@@ -982,6 +989,9 @@ class AthConfigStudio(tk.Tk):
 
     def _on_preview_sensitivity_change(self, _value: str | None = None) -> None:
         self._apply_preview_sensitivity()
+
+    def _on_preview_normals_toggle(self) -> None:
+        self._redraw_embedded_preview()
 
     def _apply_preview_sensitivity(self) -> None:
         sensitivity = max(0.3, min(2.5, float(self.preview_sensitivity_var.get())))

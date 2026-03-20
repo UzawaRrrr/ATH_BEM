@@ -13,6 +13,8 @@
   "f1": 200.0,
   "f2": 20000.0,
   "num_freq": 48,
+  "frequency_spacing": "log",
+  "velocity_frequency_weighting": "none",
   "rho0": 1.21,
   "c0": 343.0,
   "mic_distance": 5.0,

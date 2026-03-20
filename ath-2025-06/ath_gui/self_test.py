@@ -156,15 +156,21 @@ CustomThing = 42
         assert job_payload["source_gain"] == [1.0]
         assert job_payload["source_direction"] == [[0.0, 0.0, 1.0]]
         assert job_payload["angle_range_mode"] == "full_circle"
+        assert job_payload["frequency_spacing"] == "log"
+        assert job_payload["velocity_frequency_weighting"] == "none"
         assert dict(job_payload["symmetry"])["enabled"] is False
 
         bem_state["BEM.SymmetryMode"] = "quarter_xy_even_even"
         bem_state["BEM.SymmetryXValue"] = "0.0"
         bem_state["BEM.SymmetryYValue"] = "0.0"
         bem_state["BEM.AngleRangeMode"] = "half_circle"
+        bem_state["BEM.FrequencySpacing"] = "linear"
+        bem_state["BEM.VelocityFrequencyWeighting"] = "inverse_jw"
         job_payload = build_job_payload(bem_state, mesh_file, "/mnt/e/tmp/demo.msh")
         symmetry_payload = dict(job_payload["symmetry"])
         assert job_payload["angle_range_mode"] == "half_circle"
+        assert job_payload["frequency_spacing"] == "linear"
+        assert job_payload["velocity_frequency_weighting"] == "inverse_jw"
         assert symmetry_payload["enabled"] is True
         assert len(list(symmetry_payload["planes"])) == 2
 

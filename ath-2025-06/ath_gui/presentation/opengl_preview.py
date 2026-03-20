@@ -197,6 +197,7 @@ class OpenGLPreviewHost:
         self._orientation_widget = None
         self._line_actors: list[object] = []
         self._marker_actors: list[object] = []
+        self._normal_actors: list[object] = []
         self._legend_actors: list[object] = []
         self._text_actor = None
         self._vtk = None
@@ -320,6 +321,9 @@ class OpenGLPreviewHost:
         for actor in self._marker_actors:
             self._renderer.RemoveActor(actor)
         self._marker_actors.clear()
+        for actor in self._normal_actors:
+            self._renderer.RemoveActor(actor)
+        self._normal_actors.clear()
         for actor in self._legend_actors:
             self._renderer.RemoveActor2D(actor)
         self._legend_actors.clear()
@@ -471,6 +475,7 @@ class OpenGLPreviewHost:
         group_edges: dict[int, list[tuple[int, int]]],
         group_color_map: dict[int, str],
         group_element_count: dict[str, int],
+        normal_flip_count: dict[int, int] | None = None,
     ) -> None:
         if self._vtk is None or self._renderer is None or self._render_window is None:
             return
@@ -492,8 +497,10 @@ class OpenGLPreviewHost:
         for row, group_id in enumerate(sorted(group_edges)[:10], start=1):
             color = self._hex_to_rgb(group_color_map.get(group_id, "#37c8b4"))
             element_count = int(group_element_count.get(str(group_id), 0))
+            flip_count = int((normal_flip_count or {}).get(group_id, 0))
+            flip_suffix = f"  flip {flip_count}" if flip_count > 0 else ""
             item = vtk.vtkTextActor()
-            item.SetInput(f"G{group_id}  edges {len(group_edges[group_id])}  elems {element_count}")
+            item.SetInput(f"G{group_id}  edges {len(group_edges[group_id])}  elems {element_count}{flip_suffix}")
             item_prop = item.GetTextProperty()
             item_prop.SetFontSize(12)
             item_prop.SetColor(color[0], color[1], color[2])
@@ -501,12 +508,134 @@ class OpenGLPreviewHost:
             self._renderer.AddActor2D(item)
             self._legend_actors.append(item)
 
+    def _build_normal_arrow_actor(
+        self,
+        origin: tuple[float, float, float],
+        direction: tuple[float, float, float],
+        color: tuple[float, float, float],
+        *,
+        arrow_scale: float,
+    ) -> object | None:
+        if self._vtk is None:
+            return None
+        vtk = self._vtk
+        dx, dy, dz = float(direction[0]), float(direction[1]), float(direction[2])
+        dn = (dx * dx + dy * dy + dz * dz) ** 0.5
+        if dn <= 1.0e-18:
+            return None
+        dx, dy, dz = dx / dn, dy / dn, dz / dn
+
+        vtk_points = vtk.vtkPoints()
+        vtk_normals = vtk.vtkFloatArray()
+        vtk_normals.SetNumberOfComponents(3)
+        vtk_normals.SetName("Normals")
+        vtk_points.InsertNextPoint(float(origin[0]), float(origin[1]), float(origin[2]))
+        vtk_normals.InsertNextTuple3(dx, dy, dz)
+
+        poly = vtk.vtkPolyData()
+        poly.SetPoints(vtk_points)
+        poly.GetPointData().SetVectors(vtk_normals)
+
+        arrow = vtk.vtkArrowSource()
+        arrow.SetTipResolution(12)
+        arrow.SetShaftResolution(10)
+        glyph = vtk.vtkGlyph3D()
+        glyph.SetInputData(poly)
+        glyph.SetSourceConnection(arrow.GetOutputPort())
+        glyph.SetVectorModeToUseVector()
+        glyph.SetScaleModeToDataScalingOff()
+        glyph.SetScaleFactor(float(arrow_scale))
+        glyph.OrientOn()
+
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputConnection(glyph.GetOutputPort())
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(color[0], color[1], color[2])
+        actor.GetProperty().SetOpacity(0.92)
+        return actor
+
+    def _group_normal_diagnostics(
+        self,
+        points: dict[int, tuple[float, float, float]],
+        triangles: list[tuple[int, int, int]],
+    ) -> dict[str, object] | None:
+        if not triangles:
+            return None
+        normals: list[tuple[float, float, float]] = []
+        centroids: list[tuple[float, float, float]] = []
+        for a, b, c in triangles:
+            pa = points.get(int(a))
+            pb = points.get(int(b))
+            pc = points.get(int(c))
+            if pa is None or pb is None or pc is None:
+                continue
+            vax = float(pb[0]) - float(pa[0])
+            vay = float(pb[1]) - float(pa[1])
+            vaz = float(pb[2]) - float(pa[2])
+            vbx = float(pc[0]) - float(pa[0])
+            vby = float(pc[1]) - float(pa[1])
+            vbz = float(pc[2]) - float(pa[2])
+            nx = (vay * vbz) - (vaz * vby)
+            ny = (vaz * vbx) - (vax * vbz)
+            nz = (vax * vby) - (vay * vbx)
+            norm = (nx * nx + ny * ny + nz * nz) ** 0.5
+            if norm <= 1.0e-18:
+                continue
+            normals.append((nx / norm, ny / norm, nz / norm))
+            centroids.append(
+                (
+                    (float(pa[0]) + float(pb[0]) + float(pc[0])) / 3.0,
+                    (float(pa[1]) + float(pb[1]) + float(pc[1])) / 3.0,
+                    (float(pa[2]) + float(pb[2]) + float(pc[2])) / 3.0,
+                )
+            )
+        if not normals:
+            return None
+
+        mean_x = sum(n[0] for n in normals) / len(normals)
+        mean_y = sum(n[1] for n in normals) / len(normals)
+        mean_z = sum(n[2] for n in normals) / len(normals)
+        mean_norm = (mean_x * mean_x + mean_y * mean_y + mean_z * mean_z) ** 0.5
+        if mean_norm <= 1.0e-10:
+            ref = normals[0]
+        else:
+            ref = (mean_x / mean_norm, mean_y / mean_norm, mean_z / mean_norm)
+
+        representative_origin = (
+            sum(c[0] for c in centroids) / len(centroids),
+            sum(c[1] for c in centroids) / len(centroids),
+            sum(c[2] for c in centroids) / len(centroids),
+        )
+        reversed_indices = [
+            idx
+            for idx, normal in enumerate(normals)
+            if ((normal[0] * ref[0]) + (normal[1] * ref[1]) + (normal[2] * ref[2])) < -0.15
+        ]
+        reversed_count = len(reversed_indices)
+
+        reversed_origin = None
+        if reversed_count > 0:
+            rx = sum(centroids[idx][0] for idx in reversed_indices) / reversed_count
+            ry = sum(centroids[idx][1] for idx in reversed_indices) / reversed_count
+            rz = sum(centroids[idx][2] for idx in reversed_indices) / reversed_count
+            reversed_origin = (rx, ry, rz)
+
+        return {
+            "representative_origin": representative_origin,
+            "representative_normal": ref,
+            "reversed_count": reversed_count,
+            "reversed_origin": reversed_origin,
+            "triangle_count": len(normals),
+        }
+
     def set_geometry(
         self,
         data: dict[str, object],
         *,
         group_color_map: dict[int, str],
         fallback_color: str,
+        show_group_normals: bool = False,
     ) -> None:
         if not self.available or self._renderer is None or self._render_window is None:
             return
@@ -516,6 +645,10 @@ class OpenGLPreviewHost:
             int(group_id): list(group_data)
             for group_id, group_data in dict(data.get("group_edges", {})).items()
         }
+        group_triangles = {
+            int(group_id): list(group_data)
+            for group_id, group_data in dict(data.get("group_triangles", {})).items()
+        }
         group_element_count = {
             str(group_id): int(value)
             for group_id, value in dict(data.get("group_element_count", {})).items()
@@ -524,6 +657,7 @@ class OpenGLPreviewHost:
         self._clear_line_actors()
         added = 0
         marker_radius = 0.0005
+        normal_scale = 0.0025
         if points:
             xs = [coords[0] for coords in points.values()]
             ys = [coords[1] for coords in points.values()]
@@ -533,8 +667,10 @@ class OpenGLPreviewHost:
             span_z = max(zs) - min(zs)
             diagonal = max((span_x**2 + span_y**2 + span_z**2) ** 0.5, 1.0e-6)
             marker_radius = max(diagonal * 0.0075, 1.0e-4)
+            normal_scale = max(diagonal * 0.04, 6.0e-4)
 
         if group_edges:
+            normal_flip_count: dict[int, int] = {}
             for group_id in sorted(group_edges):
                 color = self._hex_to_rgb(group_color_map.get(group_id, fallback_color))
                 actor = self._build_polyline_actor(points, group_edges[group_id], color)
@@ -545,7 +681,36 @@ class OpenGLPreviewHost:
                 centroid = self._group_centroid(points, group_edges[group_id])
                 if centroid is not None:
                     self._add_group_marker(group_id, centroid, color, marker_radius)
-            self._add_group_legend(group_edges, group_color_map, group_element_count)
+                if show_group_normals:
+                    diagnostics = self._group_normal_diagnostics(points, group_triangles.get(group_id, []))
+                    if diagnostics is not None:
+                        rep_actor = self._build_normal_arrow_actor(
+                            diagnostics["representative_origin"],
+                            diagnostics["representative_normal"],
+                            color,
+                            arrow_scale=normal_scale,
+                        )
+                        if rep_actor is not None:
+                            self._renderer.AddActor(rep_actor)
+                            self._normal_actors.append(rep_actor)
+
+                        reversed_count = int(diagnostics["reversed_count"])
+                        normal_flip_count[group_id] = reversed_count
+                        if reversed_count > 0 and diagnostics["reversed_origin"] is not None:
+                            warn_actor = self._build_normal_arrow_actor(
+                                diagnostics["reversed_origin"],
+                                (
+                                    -float(diagnostics["representative_normal"][0]),
+                                    -float(diagnostics["representative_normal"][1]),
+                                    -float(diagnostics["representative_normal"][2]),
+                                ),
+                                (0.95, 0.22, 0.22),
+                                arrow_scale=normal_scale * 0.85,
+                            )
+                            if warn_actor is not None:
+                                self._renderer.AddActor(warn_actor)
+                                self._normal_actors.append(warn_actor)
+            self._add_group_legend(group_edges, group_color_map, group_element_count, normal_flip_count)
         else:
             actor = self._build_polyline_actor(points, edges, self._hex_to_rgb(fallback_color))
             if actor is not None:
@@ -556,7 +721,8 @@ class OpenGLPreviewHost:
         if self._text_actor is not None:
             if added > 0:
                 if group_edges:
-                    self._text_actor.SetInput(f"OpenGL preview | groups {len(group_edges)}")
+                    normal_tag = " | normals on" if show_group_normals else ""
+                    self._text_actor.SetInput(f"OpenGL preview | groups {len(group_edges)}{normal_tag}")
                 else:
                     self._text_actor.SetInput("OpenGL preview | no physical group tags")
             else:

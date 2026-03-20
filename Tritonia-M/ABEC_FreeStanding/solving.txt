@@ -1,6 +1,6 @@
 Control_Solver
   f1=400; f2=16000; NumFrequencies=40
-  Abscissa=log; Dim=3D; MeshFrequency=1000; Sym=x
+  Abscissa=log; Dim=3D; MeshFrequency=1000; Sym=xy
 
 MeshFile_Properties
   MeshFileAlias="M1"; Scale=1mm

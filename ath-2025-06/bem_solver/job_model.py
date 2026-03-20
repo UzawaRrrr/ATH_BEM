@@ -49,6 +49,8 @@ class BemJob:
     f1: float = 200.0
     f2: float = 20000.0
     num_freq: int = 48
+    frequency_spacing: str = "log"
+    velocity_frequency_weighting: str = "none"
     rho0: float = 1.21
     c0: float = 343.0
     mic_distance: float = 5.0
@@ -78,6 +80,8 @@ class BemJob:
             f1=float(payload.get("f1", 200.0)),
             f2=float(payload.get("f2", 20000.0)),
             num_freq=int(payload.get("num_freq", 48)),
+            frequency_spacing=str(payload.get("frequency_spacing", "log")).lower(),
+            velocity_frequency_weighting=str(payload.get("velocity_frequency_weighting", "none")).lower(),
             rho0=float(payload.get("rho0", 1.21)),
             c0=float(payload.get("c0", 343.0)),
             mic_distance=float(payload.get("mic_distance", 5.0)),
@@ -139,6 +143,10 @@ class BemJob:
             raise ValueError("Frequency range must satisfy `0 < f1 <= f2`.")
         if self.num_freq < 1:
             raise ValueError("num_freq must be at least 1.")
+        if self.frequency_spacing not in {"log", "linear"}:
+            raise ValueError("frequency_spacing must be either `log` or `linear`.")
+        if self.velocity_frequency_weighting not in {"none", "inverse_jw"}:
+            raise ValueError("velocity_frequency_weighting must be either `none` or `inverse_jw`.")
         if self.rho0 <= 0 or self.c0 <= 0:
             raise ValueError("rho0 and c0 must be greater than zero.")
         if self.mic_distance <= 0:

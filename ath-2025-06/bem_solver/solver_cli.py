@@ -41,6 +41,8 @@ def _build_summary(
         "angle_range_mode": job.angle_range_mode,
         "theta_count": job.theta_count,
         "freq_count": job.num_freq,
+        "frequency_spacing": job.frequency_spacing,
+        "velocity_frequency_weighting": job.velocity_frequency_weighting,
         "runtime_sec": round(runtime_sec, 3),
         "symmetry_enabled": job.symmetry.enabled,
         "symmetry_mode": job.symmetry.mode_label,
@@ -107,7 +109,13 @@ def main(argv: list[str] | None = None) -> int:
 
         if job.export_png:
             try:
-                export_polar_png(job_dir, result.frequencies_hz, result.angles_deg, result.spl_db)
+                export_polar_png(
+                    job_dir,
+                    result.frequencies_hz,
+                    result.angles_deg,
+                    result.spl_db,
+                    frequency_spacing=job.frequency_spacing,
+                )
             except Exception as exc:
                 mesh_warnings.append(f"PNG export failed: {exc}")
 

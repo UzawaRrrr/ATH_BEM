@@ -100,6 +100,8 @@ def format_summary_text(results: dict[str, object]) -> str:
         f"頂點數：{summary.get('vertices', '?')} | 元素數：{summary.get('elements', '?')}",
         f"對稱降階：{'啟用' if summary.get('symmetry_enabled', False) else '關閉'} | 模式：{summary.get('symmetry_mode', 'off')}",
         f"觀測平面：{summary.get('plane', '?')} | 角度範圍：{summary.get('angle_range_mode', 'full_circle')} | 角度點數：{summary.get('theta_count', '?')}",
+        f"頻率分佈：{summary.get('frequency_spacing', 'log')}",
+        f"速度頻率權重：{summary.get('velocity_frequency_weighting', 'none')}",
         f"聲源群組：{_format_sequence(list(summary.get('source_groups', [])))}",
         f"壁面群組：{_format_sequence(list(summary.get('wall_groups', [])))}",
         f"頻率點數：{summary.get('freq_count', '?')} | 執行時間 [s]：{summary.get('runtime_sec', '?')}",

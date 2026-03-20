@@ -13,6 +13,8 @@ from job_model import BemJob
 def build_frequency_axis(job: BemJob) -> np.ndarray:
     if job.num_freq == 1:
         return np.asarray([job.f1], dtype=float)
+    if str(getattr(job, "frequency_spacing", "log")).lower() == "linear":
+        return np.linspace(job.f1, job.f2, job.num_freq, dtype=float)
     return np.geomspace(job.f1, job.f2, job.num_freq, dtype=float)
 
 
@@ -46,7 +48,14 @@ def pressure_to_spl(pressure: np.ndarray, reference_pressure: float) -> np.ndarr
     return 20.0 * np.log10(magnitude / reference_pressure)
 
 
-def export_polar_png(job_dir: Path, frequencies_hz: np.ndarray, angles_deg: np.ndarray, spl_db: np.ndarray) -> Path:
+def export_polar_png(
+    job_dir: Path,
+    frequencies_hz: np.ndarray,
+    angles_deg: np.ndarray,
+    spl_db: np.ndarray,
+    *,
+    frequency_spacing: str = "log",
+) -> Path:
     import matplotlib
 
     matplotlib.use("Agg", force=True)
@@ -107,13 +116,15 @@ def export_polar_png(job_dir: Path, frequencies_hz: np.ndarray, angles_deg: np.n
         )
         axis.clabel(contour, fmt="%ddB", fontsize=7, inline=True)
 
+    spacing_mode = str(frequency_spacing).lower()
     axis.set_title(
-        f"ATH BEMPP Off-Axis Map (Klippel-like) | {len(frequencies_hz)} freq x {len(angles_deg)} angles",
+        f"ATH BEMPP Off-Axis Map (Klippel-like) | {len(frequencies_hz)} freq x {len(angles_deg)} angles | spacing {spacing_mode}",
         fontsize=12,
     )
     axis.set_xlabel("Frequency [Hz]")
     axis.set_ylabel("Angle [deg] (0 = +Z axis)")
-    axis.set_xscale("log")
+    if spacing_mode == "log":
+        axis.set_xscale("log")
     freq_min = float(np.min(frequencies_hz))
     freq_max = float(np.max(frequencies_hz))
     if math.isclose(freq_min, freq_max):
@@ -122,8 +133,12 @@ def export_polar_png(job_dir: Path, frequencies_hz: np.ndarray, angles_deg: np.n
     axis.set_xlim(freq_min, freq_max)
     axis.set_ylim(float(np.min(angles_deg)), float(np.max(angles_deg)))
 
-    axis.xaxis.set_major_locator(ticker.LogLocator(base=10.0, subs=(1.0, 2.0, 5.0)))
-    axis.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(1.0, 10.0) * 0.1))
+    if spacing_mode == "log":
+        axis.xaxis.set_major_locator(ticker.LogLocator(base=10.0, subs=(1.0, 2.0, 5.0)))
+        axis.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=np.arange(1.0, 10.0) * 0.1))
+    else:
+        axis.xaxis.set_major_locator(ticker.MaxNLocator(nbins=9))
+        axis.xaxis.set_minor_locator(ticker.AutoMinorLocator(2))
     axis.xaxis.set_major_formatter(ticker.EngFormatter(unit="Hz", sep=" "))
     angle_span = float(np.max(angles_deg) - np.min(angles_deg))
     if angle_span <= 90.0:

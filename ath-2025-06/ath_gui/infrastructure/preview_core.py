@@ -191,6 +191,7 @@ def load_embedded_preview_data(preview_file: Path) -> dict[str, object]:
 
         edges: set[tuple[int, int]] = set()
         group_edges: dict[int, set[tuple[int, int]]] = {}
+        group_triangles: dict[int, list[tuple[int, int, int]]] = {}
         group_element_counts: Counter[int] = Counter()
         element_count = 0
         mesh_dimension = 0
@@ -224,6 +225,13 @@ def load_embedded_preview_data(preview_file: Path) -> dict[str, object]:
                         connectivity = flat_nodes[start : start + nodes_per_element]
                         if len(connectivity) < 2:
                             continue
+                        if dimension == 2 and len(connectivity) >= 3:
+                            a = connectivity[0]
+                            b = connectivity[1]
+                            c = connectivity[2]
+                            if a in points and b in points and c in points:
+                                for group_id in target_groups:
+                                    group_triangles.setdefault(int(group_id), []).append((a, b, c))
                         loop_count = len(connectivity) if dimension == 2 else len(connectivity) - 1
                         for offset in range(loop_count):
                             a = connectivity[offset]
@@ -248,8 +256,13 @@ def load_embedded_preview_data(preview_file: Path) -> dict[str, object]:
             "points": points,
             "edges": sorted(edges),
             "group_edges": {int(group_id): sorted(group_edges[group_id]) for group_id in detected_groups},
+            "group_triangles": {
+                int(group_id): list(group_triangles.get(group_id, []))
+                for group_id in detected_groups
+            },
             "detected_groups": detected_groups,
             "group_edge_count": {str(group_id): len(group_edges[group_id]) for group_id in detected_groups},
+            "group_triangle_count": {str(group_id): len(group_triangles.get(group_id, [])) for group_id in detected_groups},
             "group_element_count": {str(group_id): int(group_element_counts[group_id]) for group_id in detected_groups},
             "group_source": "gmsh physical groups" if saw_physical_groups else "gmsh surface entities",
             "node_count": len(points),

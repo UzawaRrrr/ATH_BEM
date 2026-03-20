@@ -89,6 +89,18 @@ def _build_velocity_coefficients(
     )
 
 
+def compute_velocity_frequency_weighting(mode: str, omega: float) -> complex:
+    """Return the per-frequency complex source-velocity weighting factor."""
+    normalized = str(mode).strip().lower()
+    if normalized == "none":
+        return 1.0 + 0.0j
+    if normalized == "inverse_jw":
+        if not np.isfinite(omega) or omega <= 0.0:
+            raise ValueError(f"inverse_jw requires a positive angular frequency, got {omega!r}.")
+        return 1.0 / (1j * omega)
+    raise ValueError(f"Unsupported velocity_frequency_weighting mode: {mode!r}")
+
+
 def solve_exterior_velocity_bc(job: BemJob, prepared_mesh: PreparedMesh) -> SolverResult:
     """Dispatch to the standard or symmetry-reduced solver path."""
     if job.symmetry.enabled:
@@ -134,7 +146,6 @@ def solve_exterior_velocity_bc_standard(job: BemJob, prepared_mesh: PreparedMesh
                 "group_id": group_id,
                 "velocity_space": velocity_space,
                 "base_coefficients": base_coefficients,
-                "velocity_boundary": bempp_cl.api.GridFunction(velocity_space, coefficients=base_coefficients),
             }
         )
 
@@ -142,6 +153,7 @@ def solve_exterior_velocity_bc_standard(job: BemJob, prepared_mesh: PreparedMesh
     for freq_index, freq_hz in enumerate(frequencies_hz):
         omega = 2.0 * np.pi * freq_hz
         wave_number = omega / job.c0
+        velocity_weighting = compute_velocity_frequency_weighting(job.velocity_frequency_weighting, omega)
         lhs = helmholtz.double_layer(pressure_space, pressure_space, pressure_space, wave_number).weak_form() - 0.5 * identity_wf
         pressure_potential = helmholtz_potential.double_layer(pressure_space, observation_points, wave_number)
 
@@ -150,10 +162,12 @@ def solve_exterior_velocity_bc_standard(job: BemJob, prepared_mesh: PreparedMesh
             group_id = int(source_meta["group_id"])
             velocity_space = source_meta["velocity_space"]
             base_coefficients = source_meta["base_coefficients"]
-            velocity_boundary = source_meta["velocity_boundary"]
+            weighted_coefficients = np.asarray(base_coefficients * velocity_weighting, dtype=np.complex128)
+            velocity_boundary = bempp_cl.api.GridFunction(velocity_space, coefficients=weighted_coefficients)
 
             rhs = 1j * omega * job.rho0 * (
-                helmholtz.single_layer(velocity_space, pressure_space, pressure_space, wave_number).weak_form() @ base_coefficients
+                helmholtz.single_layer(velocity_space, pressure_space, pressure_space, wave_number).weak_form()
+                @ weighted_coefficients
             )
             pressure_coefficients, info, iterations = _solve_linear_system(
                 lhs,
@@ -231,10 +245,7 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
             gain=source_gain[source_index],
             direction=source_direction[source_index],
         )
-        velocity_boundary = bempp_cl.api.GridFunction(velocity_space, coefficients=base_coefficients)
-
         mirrored_velocity_spaces: dict[str, object] = {}
-        mirrored_velocity_boundaries: dict[str, object] = {}
         for item in mirrored_meshes:
             mirrored_velocity_space = bempp_cl.api.function_space(mirrored_grids[item.name], "DP", 0, segments=[group_id])
             if mirrored_velocity_space.grid_dof_count != velocity_space.grid_dof_count:
@@ -243,10 +254,6 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
                     f"{mirrored_velocity_space.grid_dof_count} != {velocity_space.grid_dof_count}"
                 )
             mirrored_velocity_spaces[item.name] = mirrored_velocity_space
-            mirrored_velocity_boundaries[item.name] = bempp_cl.api.GridFunction(
-                mirrored_velocity_space,
-                coefficients=item.image.sign * base_coefficients,
-            )
 
         source_metadata.append(
             {
@@ -254,9 +261,7 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
                 "group_id": group_id,
                 "velocity_space": velocity_space,
                 "base_coefficients": base_coefficients,
-                "velocity_boundary": velocity_boundary,
                 "mirrored_velocity_spaces": mirrored_velocity_spaces,
-                "mirrored_velocity_boundaries": mirrored_velocity_boundaries,
             }
         )
 
@@ -264,6 +269,7 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
     for freq_index, freq_hz in enumerate(frequencies_hz):
         omega = 2.0 * np.pi * freq_hz
         wave_number = omega / job.c0
+        velocity_weighting = compute_velocity_frequency_weighting(job.velocity_frequency_weighting, omega)
 
         lhs = helmholtz.double_layer(pressure_space, pressure_space, pressure_space, wave_number).weak_form() - 0.5 * identity_wf
         pressure_potential = helmholtz_potential.double_layer(pressure_space, observation_points, wave_number)
@@ -289,12 +295,20 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
             group_id = int(source_meta["group_id"])
             velocity_space = source_meta["velocity_space"]
             base_coefficients = source_meta["base_coefficients"]
-            velocity_boundary = source_meta["velocity_boundary"]
             mirrored_velocity_spaces = dict(source_meta["mirrored_velocity_spaces"])
-            mirrored_velocity_boundaries = dict(source_meta["mirrored_velocity_boundaries"])
+            weighted_coefficients = np.asarray(base_coefficients * velocity_weighting, dtype=np.complex128)
+            velocity_boundary = bempp_cl.api.GridFunction(velocity_space, coefficients=weighted_coefficients)
+            mirrored_velocity_boundaries = {
+                item.name: bempp_cl.api.GridFunction(
+                    mirrored_velocity_spaces[item.name],
+                    coefficients=item.image.sign * weighted_coefficients,
+                )
+                for item in mirrored_meshes
+            }
 
             rhs = 1j * omega * job.rho0 * (
-                helmholtz.single_layer(velocity_space, pressure_space, pressure_space, wave_number).weak_form() @ base_coefficients
+                helmholtz.single_layer(velocity_space, pressure_space, pressure_space, wave_number).weak_form()
+                @ weighted_coefficients
             )
             for item in mirrored_meshes:
                 rhs = rhs + (
@@ -309,7 +323,7 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
                             pressure_space,
                             wave_number,
                         ).weak_form()
-                        @ base_coefficients
+                        @ weighted_coefficients
                     )
                 )
 

@@ -1,5 +1,5 @@
 ; Ath version V2025-06
-; Created: 2026-03-19 19:54
+; Created: 2026-03-20 06:24
 ABEC.SimType = 2
 Coverage.Angle = 35
 Length = 200

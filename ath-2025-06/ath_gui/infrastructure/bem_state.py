@@ -105,6 +105,8 @@ def build_job_payload(state: dict[str, object], mesh_file: Path, mesh_file_wsl: 
     solver_mode = str(merged["BEM.SolverMode"]).strip() or "exterior_velocity_bc"
     plane = str(merged["BEM.Plane"]).strip().upper() or "XZ"
     angle_range_mode = str(merged.get("BEM.AngleRangeMode", "full_circle")).strip().lower() or "full_circle"
+    frequency_spacing = str(merged.get("BEM.FrequencySpacing", "log")).strip().lower() or "log"
+    velocity_frequency_weighting = str(merged.get("BEM.VelocityFrequencyWeighting", "none")).strip().lower() or "none"
 
     try:
         mesh_scale_to_meter = float(merged["BEM.MeshScaleToMeter"])
@@ -136,6 +138,10 @@ def build_job_payload(state: dict[str, object], mesh_file: Path, mesh_file_wsl: 
         raise ValueError("Observation plane must be either `XZ` or `YZ`.")
     if angle_range_mode not in {"full_circle", "half_circle", "quarter_circle"}:
         raise ValueError("Angle range mode must be one of: full_circle, half_circle, quarter_circle.")
+    if frequency_spacing not in {"log", "linear"}:
+        raise ValueError("Frequency spacing must be one of: log, linear.")
+    if velocity_frequency_weighting not in {"none", "inverse_jw"}:
+        raise ValueError("Velocity frequency weighting must be one of: none, inverse_jw.")
 
     symmetry_mode = str(merged.get("BEM.SymmetryMode", "off")).strip().lower() or "off"
     symmetry: dict[str, object] = {
@@ -176,9 +182,11 @@ def build_job_payload(state: dict[str, object], mesh_file: Path, mesh_file_wsl: 
         "source_gain": source_gain,
         "source_direction": source_direction,
         "velocity_model": str(merged["BEM.VelocityModel"]).strip() or "uniform",
+        "velocity_frequency_weighting": velocity_frequency_weighting,
         "f1": f1,
         "f2": f2,
         "num_freq": num_freq,
+        "frequency_spacing": frequency_spacing,
         "rho0": rho0,
         "c0": c0,
         "mic_distance": mic_distance,

@@ -188,6 +188,7 @@ class PreviewRenderer:
                 self.app.preview_geometry,
                 group_color_map=color_map,
                 fallback_color=ACCENT,
+                show_group_normals=bool(self.app.preview_show_normals_var.get()),
             )
             return
 
