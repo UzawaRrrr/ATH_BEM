@@ -25,10 +25,10 @@
     ]
   ],
   "velocity_model": "uniform",
-  "velocity_frequency_weighting": "inverse_jw",
+  "velocity_frequency_weighting": "none",
   "f1": 1000.0,
-  "f2": 14000.0,
-  "num_freq": 36,
+  "f2": 16000.0,
+  "num_freq": 30,
   "frequency_spacing": "log",
   "rho0": 1.21,
   "c0": 343.0,

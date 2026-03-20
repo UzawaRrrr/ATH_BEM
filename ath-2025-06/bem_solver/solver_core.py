@@ -101,6 +101,13 @@ def compute_velocity_frequency_weighting(mode: str, omega: float) -> complex:
     raise ValueError(f"Unsupported velocity_frequency_weighting mode: {mode!r}")
 
 
+def transform_direction(direction: list[float], image: object) -> np.ndarray:
+    """Transform a direction vector by the linear part of an image transform."""
+    vector = np.asarray(direction, dtype=float).reshape(3)
+    matrix = np.asarray(getattr(image, "matrix"), dtype=float)
+    return matrix @ vector
+
+
 def solve_exterior_velocity_bc(job: BemJob, prepared_mesh: PreparedMesh) -> SolverResult:
     """Dispatch to the standard or symmetry-reduced solver path."""
     if job.symmetry.enabled:
@@ -220,6 +227,13 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
     warnings_out.extend(validation.warnings)
     images = build_image_transforms(job.symmetry)
     mirrored_meshes = write_mirrored_meshes(prepared_mesh, images, job.job_dir / "symmetry")
+    for mirrored in mirrored_meshes:
+        notes.append(
+            "Mirrored mesh "
+            f"{mirrored.name}: det={mirrored.determinant:.6g}, "
+            f"orientation_reversing={mirrored.orientation_reversing}, "
+            f"winding_reversed={mirrored.winding_reversed}."
+        )
 
     base_grid = bempp_cl.api.import_grid(str(prepared_mesh.grid_file))
     pressure_space = bempp_cl.api.function_space(base_grid, "P", 1)
@@ -237,15 +251,17 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
 
     source_metadata: list[dict[str, object]] = []
     for source_index, group_id in enumerate(job.source_groups):
+        base_direction = source_direction[source_index]
         velocity_space = bempp_cl.api.function_space(base_grid, "DP", 0, segments=[group_id])
         if velocity_space.grid_dof_count == 0:
             raise ValueError(f"Source group {group_id} resolved to an empty Bempp segment.")
         base_coefficients = _build_velocity_coefficients(
             velocity_space,
             gain=source_gain[source_index],
-            direction=source_direction[source_index],
+            direction=base_direction,
         )
         mirrored_velocity_spaces: dict[str, object] = {}
+        mirrored_base_coefficients: dict[str, np.ndarray] = {}
         for item in mirrored_meshes:
             mirrored_velocity_space = bempp_cl.api.function_space(mirrored_grids[item.name], "DP", 0, segments=[group_id])
             if mirrored_velocity_space.grid_dof_count != velocity_space.grid_dof_count:
@@ -254,6 +270,18 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
                     f"{mirrored_velocity_space.grid_dof_count} != {velocity_space.grid_dof_count}"
                 )
             mirrored_velocity_spaces[item.name] = mirrored_velocity_space
+            transformed_direction = transform_direction(base_direction, item.image).tolist()
+            mirrored_base_coefficients[item.name] = _build_velocity_coefficients(
+                mirrored_velocity_space,
+                gain=source_gain[source_index],
+                direction=transformed_direction,
+            )
+            notes.append(
+                "Mirrored source setup "
+                f"group={group_id}, image={item.name}, direction={transformed_direction}, "
+                f"dof={mirrored_velocity_space.grid_dof_count}, coeff_dtype={mirrored_base_coefficients[item.name].dtype}, "
+                "parity_sign_applied_in_operator_terms=True."
+            )
 
         source_metadata.append(
             {
@@ -262,6 +290,7 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
                 "velocity_space": velocity_space,
                 "base_coefficients": base_coefficients,
                 "mirrored_velocity_spaces": mirrored_velocity_spaces,
+                "mirrored_base_coefficients": mirrored_base_coefficients,
             }
         )
 
@@ -296,12 +325,20 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
             velocity_space = source_meta["velocity_space"]
             base_coefficients = source_meta["base_coefficients"]
             mirrored_velocity_spaces = dict(source_meta["mirrored_velocity_spaces"])
+            mirrored_base_coefficients = dict(source_meta["mirrored_base_coefficients"])
             weighted_coefficients = np.asarray(base_coefficients * velocity_weighting, dtype=np.complex128)
+            mirrored_weighted_coefficients = {
+                item.name: np.asarray(
+                    mirrored_base_coefficients[item.name] * velocity_weighting,
+                    dtype=np.complex128,
+                )
+                for item in mirrored_meshes
+            }
             velocity_boundary = bempp_cl.api.GridFunction(velocity_space, coefficients=weighted_coefficients)
             mirrored_velocity_boundaries = {
                 item.name: bempp_cl.api.GridFunction(
                     mirrored_velocity_spaces[item.name],
-                    coefficients=item.image.sign * weighted_coefficients,
+                    coefficients=mirrored_weighted_coefficients[item.name],
                 )
                 for item in mirrored_meshes
             }
@@ -323,7 +360,7 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
                             pressure_space,
                             wave_number,
                         ).weak_form()
-                        @ weighted_coefficients
+                        @ mirrored_weighted_coefficients[item.name]
                     )
                 )
 
@@ -357,20 +394,23 @@ def solve_exterior_velocity_bc_with_symmetry(job: BemJob, prepared_mesh: Prepare
             for item in mirrored_meshes:
                 mirrored_pressure = bempp_cl.api.GridFunction(
                     mirrored_pressure_spaces[item.name],
-                    coefficients=item.image.sign * pressure_coefficients,
+                    coefficients=pressure_coefficients,
                 )
                 mic_pressure = mic_pressure + (
-                    mirrored_pressure_potentials[item.name] * mirrored_pressure
-                    - 1j
-                    * omega
-                    * job.rho0
+                    item.image.sign
                     * (
-                        helmholtz_potential.single_layer(
-                            mirrored_velocity_spaces[item.name],
-                            observation_points,
-                            wave_number,
+                        mirrored_pressure_potentials[item.name] * mirrored_pressure
+                        - 1j
+                        * omega
+                        * job.rho0
+                        * (
+                            helmholtz_potential.single_layer(
+                                mirrored_velocity_spaces[item.name],
+                                observation_points,
+                                wave_number,
+                            )
+                            * mirrored_velocity_boundaries[item.name]
                         )
-                        * mirrored_velocity_boundaries[item.name]
                     )
                 )
 

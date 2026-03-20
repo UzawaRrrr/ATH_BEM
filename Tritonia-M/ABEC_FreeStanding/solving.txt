@@ -1,5 +1,5 @@
 Control_Solver
-  f1=400; f2=16000; NumFrequencies=40
+  f1=1000; f2=16000; NumFrequencies=40
   Abscissa=log; Dim=3D; MeshFrequency=1000; Sym=xy
 
 MeshFile_Properties

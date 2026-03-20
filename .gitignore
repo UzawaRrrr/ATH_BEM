@@ -1,0 +1,16 @@
+# Python virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Python cache/temp
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# ATH/BEM test-only artifacts
+ath-2025-06/.pytest_tmp/
+ath-2025-06/tests/
+ath-2025-06/_symmetry_smoke/_tmp_full_rebuild/
+ath-2025-06/_symmetry_smoke/full_rebuild/

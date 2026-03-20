@@ -1,5 +1,5 @@
 ; Ath version V2025-06
-; Created: 2026-03-20 12:36
+; Created: 2026-03-20 13:47
 ABEC.NumFrequencies = 40
 ABEC.Polars:SPL_H = {
 Distance = 2
@@ -7,7 +7,7 @@ MapAngleRange = 0,180,37
 NormAngle = 10
 }
 ABEC.SimType = 2
-ABEC.f1 = 400
+ABEC.f1 = 1000
 ABEC.f2 = 16000
 Coverage.Angle = 48.5 - 7*cos(2*p)^5 - 16*sin(p)^12
 Length = 135

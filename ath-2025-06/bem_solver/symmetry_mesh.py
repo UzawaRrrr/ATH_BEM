@@ -41,6 +41,16 @@ class MirroredMesh:
     name: str
     image: ImageTransform
     mesh_file: Path
+    determinant: float
+    orientation_reversing: bool
+    winding_reversed: bool
+
+
+def is_orientation_reversing(image: ImageTransform) -> bool:
+    """Return True if the image transform flips orientation (determinant < 0)."""
+    matrix = np.asarray(image.matrix, dtype=float)
+    determinant = float(np.linalg.det(matrix))
+    return determinant < 0.0
 
 
 def validate_reduced_mesh_against_symmetry(
@@ -125,12 +135,21 @@ def write_mirrored_meshes(
         for group_id in sorted(set(int(value) for value in prepared_mesh.group_ids.tolist()))
     }
 
+    base_triangles = np.asarray(prepared_mesh.triangles, dtype=np.int64)
     mirrored_meshes: list[MirroredMesh] = []
     for image in images:
         mirrored_points = image.apply_to_points(np.asarray(prepared_mesh.points, dtype=float))
+        matrix = np.asarray(image.matrix, dtype=float)
+        determinant = float(np.linalg.det(matrix))
+        orientation_reversing = is_orientation_reversing(image)
+        mirrored_triangles = (
+            base_triangles[:, [0, 2, 1]]
+            if orientation_reversing
+            else base_triangles
+        )
         mesh = meshio.Mesh(
             points=mirrored_points,
-            cells=[("triangle", np.asarray(prepared_mesh.triangles, dtype=np.int64))],
+            cells=[("triangle", mirrored_triangles)],
             cell_data={
                 "gmsh:physical": [np.asarray(prepared_mesh.group_ids, dtype=np.int32)],
                 "gmsh:geometrical": [np.asarray(prepared_mesh.group_ids, dtype=np.int32)],
@@ -139,7 +158,15 @@ def write_mirrored_meshes(
         )
         mesh_file = output_dir / f"boundary_{image.name}.msh"
         meshio.write(mesh_file, mesh, file_format="gmsh22")
-        mirrored_meshes.append(MirroredMesh(name=image.name, image=image, mesh_file=mesh_file))
+        mirrored_meshes.append(
+            MirroredMesh(
+                name=image.name,
+                image=image,
+                mesh_file=mesh_file,
+                determinant=determinant,
+                orientation_reversing=orientation_reversing,
+                winding_reversed=orientation_reversing,
+            )
+        )
 
     return mirrored_meshes
-

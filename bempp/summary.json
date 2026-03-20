@@ -13,10 +13,10 @@
   "plane": "XZ",
   "angle_range_mode": "half_circle",
   "theta_count": 37,
-  "freq_count": 36,
+  "freq_count": 30,
   "frequency_spacing": "log",
-  "velocity_frequency_weighting": "inverse_jw",
-  "runtime_sec": 85.334,
+  "velocity_frequency_weighting": "none",
+  "runtime_sec": 72.452,
   "symmetry_enabled": true,
   "symmetry_mode": "quarter_xy_even_even",
   "warnings": [
@@ -28,7 +28,13 @@
     "Rigid-wall behavior is modeled as zero normal velocity on all non-source surface groups.",
     "Velocity model: uniform",
     "Symmetry reduction: quarter_xy_even_even",
-    "Source group 2: 75 GMRES iterations at 1000.000 Hz with symmetry mode quarter_xy_even_even."
+    "Mirrored mesh xe: det=-1, orientation_reversing=True, winding_reversed=True.",
+    "Mirrored mesh ye: det=-1, orientation_reversing=True, winding_reversed=True.",
+    "Mirrored mesh xe_ye: det=1, orientation_reversing=False, winding_reversed=False.",
+    "Mirrored source setup group=2, image=xe, direction=[0.0, 0.0, 1.0], dof=16, coeff_dtype=complex128, parity_sign_applied_in_operator_terms=True.",
+    "Mirrored source setup group=2, image=ye, direction=[0.0, 0.0, 1.0], dof=16, coeff_dtype=complex128, parity_sign_applied_in_operator_terms=True.",
+    "Mirrored source setup group=2, image=xe_ye, direction=[0.0, 0.0, 1.0], dof=16, coeff_dtype=complex128, parity_sign_applied_in_operator_terms=True.",
+    "Source group 2: 89 GMRES iterations at 1000.000 Hz with symmetry mode quarter_xy_even_even."
   ],
   "boundary_role_diagnostics": {
     "available_groups": [

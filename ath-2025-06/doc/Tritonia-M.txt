@@ -33,7 +33,7 @@ Mesh.Enclosure = {
 
 ; ABEC
 ABEC.SimType = 2
-ABEC.f1 = 400
+ABEC.f1 = 1000
 ABEC.f2 = 16000
 ABEC.NumFrequencies = 40
 
