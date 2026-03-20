@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
+import re
+from datetime import datetime
 from pathlib import Path
 
 
@@ -25,8 +28,68 @@ def describe_bem_status(status: object) -> str:
     return STATUS_LABELS.get(normalized, str(status))
 
 
-def default_bem_result_dir(output_dir: Path) -> Path:
+def bem_root_dir(output_dir: Path) -> Path:
     return output_dir / "bempp"
+
+
+def _latest_run_pointer_path(output_dir: Path) -> Path:
+    return bem_root_dir(output_dir) / "latest_run.txt"
+
+
+def _sanitize_run_key(text: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "_", text.strip())
+    normalized = normalized.strip("._-")
+    return normalized or "unnamed"
+
+
+def create_bem_result_run_dir(output_dir: Path, *, cfg_path: Path, mesh_file: Path) -> Path:
+    """Create a unique BEM run directory without overwriting previous results."""
+    root = bem_root_dir(output_dir)
+    runs_root = root / "runs"
+    cfg_key = _sanitize_run_key(cfg_path.stem)
+    mesh_key = _sanitize_run_key(mesh_file.stem)
+    key_hash = hashlib.sha1(str(mesh_file.resolve()).encode("utf-8")).hexdigest()[:8]
+    waveguide_key = f"{cfg_key}__{mesh_key}_{key_hash}"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    candidate = runs_root / waveguide_key / timestamp
+    suffix = 1
+    while candidate.exists():
+        candidate = runs_root / waveguide_key / f"{timestamp}_{suffix:02d}"
+        suffix += 1
+    candidate.mkdir(parents=True, exist_ok=False)
+    return candidate
+
+
+def write_latest_bem_result_dir(output_dir: Path, result_dir: Path) -> None:
+    """Persist the latest successful/active BEM run path for GUI default loading."""
+    pointer = _latest_run_pointer_path(output_dir)
+    pointer.parent.mkdir(parents=True, exist_ok=True)
+    pointer.write_text(str(result_dir.resolve()), encoding="utf-8", newline="\n")
+
+
+def _read_latest_bem_result_dir(output_dir: Path) -> Path | None:
+    pointer = _latest_run_pointer_path(output_dir)
+    if not pointer.exists():
+        return None
+    try:
+        raw = pointer.read_text(encoding="utf-8").strip()
+    except Exception:
+        return None
+    if not raw:
+        return None
+    target = Path(raw)
+    if not target.is_absolute():
+        target = (pointer.parent / raw).resolve()
+    if (target / "summary.json").exists():
+        return target
+    return None
+
+
+def default_bem_result_dir(output_dir: Path) -> Path:
+    latest = _read_latest_bem_result_dir(output_dir)
+    if latest is not None:
+        return latest
+    return bem_root_dir(output_dir)
 
 
 def load_json_file(path: Path) -> dict[str, object]:

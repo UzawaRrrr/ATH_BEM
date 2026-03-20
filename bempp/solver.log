@@ -1,9 +1,9 @@
 [bem_solver] Loading job from /mnt/e/pythonGATH/bempp/job.json
 
-[bem_solver] Mesh ready: 1303 vertices, 1782 triangles, 3 active groups.
+[bem_solver] Mesh ready: 1164 vertices, 1848 triangles, 3 active groups.
 [bem_solver] Source groups: [2]
 [bem_solver] Wall groups: [1, 3]
-[bem_solver] Boundary coverage: source_area=1.233971e-04 m^2 (0.1%), wall_area=1.412683e-01 m^2 (99.9%).
+[bem_solver] Boundary coverage: source_area=1.234317e-04 m^2 (0.1%), wall_area=2.213083e-01 m^2 (99.9%).
 
 
 

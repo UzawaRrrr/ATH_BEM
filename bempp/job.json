@@ -1,6 +1,6 @@
 {
-  "mesh_file": "E:/pythonGATH/Tritonia-M/ABEC_FreeStanding/Tritonia-M.msh",
-  "mesh_file_wsl": "/mnt/e/pythonGATH/Tritonia-M/ABEC_FreeStanding/Tritonia-M.msh",
+  "mesh_file": "E:/pythonGATH/Autima_1_75/ABEC_FreeStanding/Autima_1_75.msh",
+  "mesh_file_wsl": "/mnt/e/pythonGATH/Autima_1_75/ABEC_FreeStanding/Autima_1_75.msh",
   "mesh_scale_to_meter": 0.001,
   "solver_mode": "exterior_velocity_bc",
   "source_groups": [
@@ -26,9 +26,9 @@
   ],
   "velocity_model": "uniform",
   "velocity_frequency_weighting": "none",
-  "f1": 1000.0,
+  "f1": 1200.0,
   "f2": 16000.0,
-  "num_freq": 30,
+  "num_freq": 36,
   "frequency_spacing": "log",
   "rho0": 1.21,
   "c0": 343.0,

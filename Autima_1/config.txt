@@ -1,0 +1,31 @@
+; Ath version V2025-06
+; Created: 2026-03-20 18:57
+ABEC.SimType = 2
+GCurve.AspectRatio = 0.825
+GCurve.Dist = 0.618
+GCurve.SF = 1,1,4,3.5,5,5
+GCurve.Type = 2
+GCurve.Width = 300
+Length = 300
+Mesh.AngularSegments = 64
+Mesh.Enclosure = {
+BackResolution = 25,25,25,25
+Depth = 310
+EdgeRadius = 10
+FrontResolution = 25,25,25,25
+Spacing = 10,10,10,10
+}
+Mesh.LengthSegments = 24
+Mesh.MouthResolution = 18
+Mesh.ThroatResolution = 6
+Morph.TargetShape = 1
+Output.ABECProject = 1
+Output.DestDir = E:/pythonGATH
+Output.MSH = 0
+Output.STL = 0
+Source.Radius = 25.4
+Source.Shape = 2
+Term.n = 4.71
+Term.q = 0.994
+Term.s = 0.618
+Throat.Diameter = 25.4

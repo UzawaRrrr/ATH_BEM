@@ -103,7 +103,7 @@ class AthConfigStudio(tk.Tk):
         self.bem_status_var = tk.StringVar(value="閒置")
         self.bem_result_path_var = tk.StringVar(value="尚未執行任何 BEM 工作。")
         self.bem_plot_caption_var = tk.StringVar(value="執行 BEM 後將在此顯示指向性極座標圖。")
-        self.bem_plot_mode_var = tk.StringVar(value="band_map")
+        self.bem_plot_mode_var = tk.StringVar(value="Smooth Display")
         self.bem_plot_log_x_var = tk.BooleanVar(value=True)
         self.preview_view_var = tk.StringVar(value="視角：yaw 32°, pitch -18°, zoom 1.00x")
         self.status_card_collapsed = tk.BooleanVar(value=False)
@@ -122,6 +122,8 @@ class AthConfigStudio(tk.Tk):
         self.preview_sensitivity_var = tk.DoubleVar(value=1.0)
         self.preview_sensitivity_label_var = tk.StringVar(value="互動靈敏度 1.00x")
         self.preview_show_normals_var = tk.BooleanVar(value=True)
+        self._suspend_dependency_refresh = False
+        self._dependency_trace_tokens: list[tuple[tk.Variable, str]] = []
         self.font_family = self._resolve_ui_font_family()
         self._configure_fonts()
         self.preview_controller = PreviewController(self)
@@ -196,6 +198,11 @@ class AthConfigStudio(tk.Tk):
             darkcolor=BORDER,
             insertcolor=TEXT,
         )
+        style.map(
+            "TEntry",
+            fieldbackground=[("disabled", "#0a1320")],
+            foreground=[("disabled", MUTED)],
+        )
         style.configure(
             "TCombobox",
             font="AthUiBodyFont",
@@ -209,9 +216,9 @@ class AthConfigStudio(tk.Tk):
         )
         style.map(
             "TCombobox",
-            fieldbackground=[("readonly", INPUT_BG)],
+            fieldbackground=[("disabled", "#0a1320"), ("readonly", INPUT_BG)],
             background=[("readonly", INPUT_BG)],
-            foreground=[("readonly", TEXT)],
+            foreground=[("disabled", MUTED), ("readonly", TEXT)],
             selectbackground=[("readonly", ACCENT)],
             selectforeground=[("readonly", "#081018")],
         )
@@ -487,6 +494,8 @@ class AthConfigStudio(tk.Tk):
             justify="left",
             wraplength=720,
         ).grid(row=0, column=0, sticky="w")
+        self._bind_dependency_traces()
+        self.refresh_dependency_states()
 
     def _build_preview_panel(self, target: ttk.Frame) -> None:
         target.columnconfigure(0, weight=1)
@@ -646,7 +655,7 @@ class AthConfigStudio(tk.Tk):
         mode_combo = ttk.Combobox(
             toolbar,
             textvariable=self.bem_plot_mode_var,
-            values=("band_map", "single_freq_polar"),
+            values=("Smooth Display", "Raw", "Single Freq Polar"),
             state="readonly",
             width=18,
         )
@@ -675,26 +684,28 @@ class AthConfigStudio(tk.Tk):
     def _populate_card(self, card: ttk.LabelFrame, fields: tuple[FieldSpec, ...], widget_map: dict[str, dict[str, object]]) -> None:
         row = 0
         for spec in fields:
-            ttk.Label(card, text=spec.label, style="CardLabel.TLabel").grid(row=row, column=0, sticky="nw", padx=(0, 14), pady=(0, 12))
+            label_widget = ttk.Label(card, text=spec.label, style="CardLabel.TLabel")
+            label_widget.grid(row=row, column=0, sticky="nw", padx=(0, 14), pady=(0, 12))
             control_frame = ttk.Frame(card, style="Card.TFrame")
             control_frame.grid(row=row, column=1, sticky="ew", pady=(0, 12))
             control_frame.columnconfigure(0, weight=1)
+            browse_button: ttk.Button | None = None
 
             if spec.kind == "check":
                 var = tk.BooleanVar(value=bool(spec.default))
                 widget = ttk.Checkbutton(control_frame, variable=var)
                 widget.grid(row=0, column=0, sticky="w")
-                widget_map[spec.key] = {"spec": spec, "var": var, "widget": widget}
+                widget_map[spec.key] = {"spec": spec, "var": var, "widget": widget, "label_widget": label_widget}
             elif spec.kind == "combo":
                 var = tk.StringVar(value=str(spec.default))
                 widget = ttk.Combobox(control_frame, textvariable=var, values=spec.choices, width=spec.width, state="readonly")
                 widget.grid(row=0, column=0, sticky="ew")
-                widget_map[spec.key] = {"spec": spec, "var": var, "widget": widget}
+                widget_map[spec.key] = {"spec": spec, "var": var, "widget": widget, "label_widget": label_widget}
             elif spec.kind == "multiline":
                 height = 8 if spec.key == "ADVANCED.Raw" else 7
                 widget = self._make_dark_text(control_frame, height=height, wrap="word")
                 widget.grid(row=0, column=0, sticky="ew")
-                widget_map[spec.key] = {"spec": spec, "widget": widget}
+                widget_map[spec.key] = {"spec": spec, "widget": widget, "label_widget": label_widget}
             else:
                 entry_frame = ttk.Frame(control_frame, style="Card.TFrame")
                 entry_frame.grid(row=0, column=0, sticky="ew")
@@ -702,25 +713,142 @@ class AthConfigStudio(tk.Tk):
                 var = tk.StringVar(value=str(spec.default))
                 widget = ttk.Entry(entry_frame, textvariable=var, width=spec.width)
                 widget.grid(row=0, column=0, sticky="ew")
-                widget_map[spec.key] = {"spec": spec, "var": var, "widget": widget}
+                widget_map[spec.key] = {"spec": spec, "var": var, "widget": widget, "label_widget": label_widget}
                 if spec.browse:
-                    ttk.Button(
+                    browse_button = ttk.Button(
                         entry_frame,
                         text="瀏覽",
                         style="Tool.TButton",
                         command=lambda key=spec.key, mode=spec.browse: self.browse_for_field(key, mode),
-                    ).grid(row=0, column=1, padx=(8, 0))
+                    )
+                    browse_button.grid(row=0, column=1, padx=(8, 0))
+                    widget_map[spec.key]["browse_button"] = browse_button
 
             helper_text = build_field_hint(spec)
-            if helper_text:
-                ttk.Label(
-                    control_frame,
-                    text=helper_text,
-                    style="Hint.TLabel",
-                    wraplength=700,
-                    justify="left",
-                ).grid(row=1, column=0, sticky="w", pady=(6, 0))
+            hint_label = ttk.Label(
+                control_frame,
+                text=helper_text,
+                style="Hint.TLabel",
+                wraplength=700,
+                justify="left",
+            )
+            hint_label.grid(row=1, column=0, sticky="w", pady=(6, 0))
+            widget_map[spec.key]["hint_label"] = hint_label
+            widget_map[spec.key]["base_hint"] = helper_text
+            if not helper_text:
+                hint_label.grid_remove()
             row += 1
+
+    def compute_field_enablement(self, state: dict[str, object]) -> dict[str, dict[str, object]]:
+        """Return per-field enablement and reason for OS-SE/GCurve mode dependencies."""
+        rules = {
+            "Coverage.Angle": {"enabled": True, "reason": ""},
+            "GCurve.Dist": {"enabled": True, "reason": ""},
+            "GCurve.Width": {"enabled": True, "reason": ""},
+            "GCurve.AspectRatio": {"enabled": True, "reason": ""},
+            "GCurve.SE.n": {"enabled": True, "reason": ""},
+            "GCurve.SF": {"enabled": True, "reason": ""},
+            "GCurve.Rot": {"enabled": True, "reason": ""},
+        }
+        throat_profile = str(state.get("Throat.Profile", "")).strip()
+        gcurve_type = str(state.get("GCurve.Type", "")).strip()
+        if throat_profile != "1":
+            return rules
+
+        if gcurve_type == "":
+            rules["Coverage.Angle"] = {"enabled": True, "reason": ""}
+            reason = "Only used when a Guiding Curve is defined."
+            rules["GCurve.Dist"] = {"enabled": False, "reason": "Only used when Guiding Curve is active."}
+            rules["GCurve.Width"] = {"enabled": False, "reason": reason}
+            rules["GCurve.AspectRatio"] = {"enabled": False, "reason": reason}
+            rules["GCurve.SE.n"] = {"enabled": False, "reason": "Only used for GCurve.Type = 1 (superellipse)."}
+            rules["GCurve.SF"] = {"enabled": False, "reason": "Only used for GCurve.Type = 2 (superformula)."}
+            rules["GCurve.Rot"] = {"enabled": False, "reason": reason}
+            return rules
+
+        if gcurve_type == "1":
+            rules["Coverage.Angle"] = {"enabled": False, "reason": "Ignored when Guiding Curve is active (ATH auto-coverage)."}
+            rules["GCurve.Dist"] = {"enabled": True, "reason": ""}
+            rules["GCurve.Width"] = {"enabled": True, "reason": ""}
+            rules["GCurve.AspectRatio"] = {"enabled": True, "reason": ""}
+            rules["GCurve.SE.n"] = {"enabled": True, "reason": ""}
+            rules["GCurve.SF"] = {"enabled": False, "reason": "Only used for GCurve.Type = 2 (superformula)."}
+            rules["GCurve.Rot"] = {"enabled": True, "reason": ""}
+            return rules
+
+        if gcurve_type == "2":
+            rules["Coverage.Angle"] = {"enabled": False, "reason": "Ignored when Guiding Curve is active (ATH auto-coverage)."}
+            rules["GCurve.Dist"] = {"enabled": True, "reason": ""}
+            rules["GCurve.Width"] = {"enabled": True, "reason": ""}
+            rules["GCurve.AspectRatio"] = {"enabled": True, "reason": ""}
+            rules["GCurve.SE.n"] = {"enabled": False, "reason": "Only used for GCurve.Type = 1 (superellipse)."}
+            rules["GCurve.SF"] = {"enabled": True, "reason": ""}
+            rules["GCurve.Rot"] = {"enabled": True, "reason": ""}
+        return rules
+
+    def _set_widget_enabled(self, data: dict[str, object], *, enabled: bool) -> None:
+        spec: FieldSpec = data["spec"]
+        widget = data["widget"]
+        if spec.kind == "combo":
+            widget.configure(state="readonly" if enabled else "disabled")
+        elif spec.kind == "check":
+            widget.state(["!disabled"] if enabled else ["disabled"])
+        elif spec.kind == "multiline":
+            widget.configure(state="normal" if enabled else "disabled")
+        else:
+            widget.configure(state="normal" if enabled else "disabled")
+
+        browse_button = data.get("browse_button")
+        if browse_button is not None:
+            browse_button.state(["!disabled"] if enabled else ["disabled"])
+
+    def apply_field_enablement(self, rules: dict[str, dict[str, object]]) -> None:
+        """Apply GUI enable/disable states and reasons based on dependency rules."""
+        for key, rule in rules.items():
+            data = self.horn_widgets.get(key)
+            if not data:
+                continue
+            enabled = bool(rule.get("enabled", True))
+            reason = str(rule.get("reason", "")).strip()
+            self._set_widget_enabled(data, enabled=enabled)
+
+            hint_label = data.get("hint_label")
+            if isinstance(hint_label, ttk.Label):
+                base_hint = str(data.get("base_hint", "")).strip()
+                if enabled:
+                    hint_text = base_hint
+                else:
+                    hint_text = f"{base_hint}\nIgnored: {reason}".strip() if base_hint else f"Ignored: {reason}"
+                if hint_text:
+                    hint_label.configure(text=hint_text)
+                    hint_label.grid()
+                else:
+                    hint_label.grid_remove()
+
+            label_widget = data.get("label_widget")
+            if isinstance(label_widget, ttk.Label):
+                label_widget.configure(style="CardLabel.TLabel" if enabled else "Hint.TLabel")
+
+    def refresh_dependency_states(self) -> None:
+        state = self.collect_horn_state()
+        rules = self.compute_field_enablement(state)
+        self.apply_field_enablement(rules)
+
+    def _on_dependency_field_changed(self, *_args: object) -> None:
+        if self._suspend_dependency_refresh:
+            return
+        self.refresh_dependency_states()
+
+    def _bind_dependency_traces(self) -> None:
+        dependency_keys = ("Throat.Profile", "GCurve.Type")
+        for key in dependency_keys:
+            data = self.horn_widgets.get(key)
+            if not data:
+                continue
+            variable = data.get("var")
+            if isinstance(variable, tk.Variable):
+                token = variable.trace_add("write", self._on_dependency_field_changed)
+                self._dependency_trace_tokens.append((variable, token))
 
     def browse_for_field(self, key: str, mode: str) -> None:
         if mode == "dir":
@@ -858,8 +986,13 @@ class AthConfigStudio(tk.Tk):
             self._set_widget_value(data, state.get(key, data["spec"].default))
 
     def apply_horn_state(self, state: dict[str, object]) -> None:
-        for key, data in self.horn_widgets.items():
-            self._set_widget_value(data, state.get(key, data["spec"].default))
+        self._suspend_dependency_refresh = True
+        try:
+            for key, data in self.horn_widgets.items():
+                self._set_widget_value(data, state.get(key, data["spec"].default))
+        finally:
+            self._suspend_dependency_refresh = False
+        self.refresh_dependency_states()
         self.refresh_preview()
 
     def apply_bem_state(self, state: dict[str, object]) -> None:

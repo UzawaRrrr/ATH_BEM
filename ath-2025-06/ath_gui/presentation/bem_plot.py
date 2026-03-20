@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import base64
+import io
 import math
 import tkinter as tk
+from typing import Any
+
+import numpy as np
 
 from ..domain.specs import ACCENT, BORDER, INPUT_BG, MUTED, TEXT
+from .bandmap_display import BandMapData, BandMapDisplayOptions, BandMapRenderData, prepare_bandmap_render_data
 
 
 def draw_placeholder(canvas: tk.Canvas, message: str) -> None:
@@ -203,148 +209,219 @@ def _draw_single_frequency_polar(canvas: tk.Canvas, polar_rows: list[dict[str, f
 
 
 def _draw_band_map(canvas: tk.Canvas, polar_rows: list[dict[str, float]], *, log_x: bool = True) -> str:
-    grouped = _group_rows_by_frequency(polar_rows)
-    if not grouped:
-        draw_placeholder(canvas, "尚未有可用頻段資料。")
-        return ""
+    return _draw_band_map_smooth(canvas, polar_rows, log_x=log_x)
 
-    frequencies = sorted(grouped)
-    angle_set = sorted({float(row["angle_deg"]) for rows in grouped.values() for row in rows})
-    if len(frequencies) < 2 or len(angle_set) < 2:
-        draw_placeholder(canvas, "頻率或角度取樣不足，無法顯示頻段離軸圖。")
-        return ""
 
-    matrix: dict[tuple[float, float], float] = {}
-    for freq, rows in grouped.items():
-        for row in rows:
-            matrix[(freq, float(row["angle_deg"]))] = float(row["spl_db"])
+def _get_bandmap_render_data(canvas: tk.Canvas, polar_rows: list[dict[str, float]]) -> BandMapRenderData:
+    cache_key = (
+        len(polar_rows),
+        tuple(
+            (
+                round(float(row.get("freq_hz", 0.0)), 6),
+                round(float(row.get("angle_deg", 0.0)), 6),
+                round(float(row.get("spl_db", 0.0)), 6),
+            )
+            for row in polar_rows
+        ),
+    )
+    cached_key = getattr(canvas, "_bandmap_cache_key", None)
+    cached_data = getattr(canvas, "_bandmap_cache_data", None)
+    if cached_key == cache_key and isinstance(cached_data, BandMapRenderData):
+        return cached_data
+    render_data = prepare_bandmap_render_data(
+        polar_rows,
+        options=BandMapDisplayOptions(
+            dense_freq_points=320,
+            dense_angle_points=181,
+            sigma_angle=0.8,
+            sigma_logfreq=0.45,
+            enable_smoothing=True,
+            vmin_db=-24.0,
+            vmax_db=6.0,
+        ),
+    )
+    setattr(canvas, "_bandmap_cache_key", cache_key)
+    setattr(canvas, "_bandmap_cache_data", render_data)
+    return render_data
 
-    on_axis_angle = min(angle_set, key=lambda angle: abs(angle))
-    relative_values: list[float] = []
-    for freq in frequencies:
-        reference = matrix.get((freq, on_axis_angle))
-        if reference is None:
-            continue
-        for angle in angle_set:
-            value = matrix.get((freq, angle), reference) - reference
-            relative_values.append(value)
 
-    if not relative_values:
-        draw_placeholder(canvas, "離軸資料不完整，無法顯示頻段圖。")
-        return ""
+def _build_klippel_colormap() -> Any:
+    from matplotlib.colors import LinearSegmentedColormap
 
-    canvas.delete("all")
+    return LinearSegmentedColormap.from_list(
+        "klippel_like",
+        [
+            "#0a2342",
+            "#153e75",
+            "#225ea8",
+            "#1d91c0",
+            "#41b6c4",
+            "#7fcdbb",
+            "#c7e9b4",
+            "#ffffbf",
+            "#fee08b",
+            "#fdae61",
+            "#f46d43",
+            "#d73027",
+        ],
+        N=256,
+    )
+
+
+def _draw_band_map_with_matplotlib(
+    canvas: tk.Canvas,
+    *,
+    data: BandMapData,
+    raw_reference: BandMapData,
+    mode: str,
+    log_x: bool,
+    vmin: float = -24.0,
+    vmax: float = 6.0,
+) -> str:
+    import matplotlib
+
+    matplotlib.use("Agg", force=True)
+    from matplotlib import ticker
+    from matplotlib import pyplot as plt
+
     width = max(canvas.winfo_width(), 520)
     height = max(canvas.winfo_height(), 360)
-    left = 72
-    right = width - 86
-    top = 26
-    bottom = height - 56
-    plot_w = max(right - left, 12)
-    plot_h = max(bottom - top, 12)
+    figure_dpi = 110
+    figure = plt.Figure(figsize=(width / figure_dpi, height / figure_dpi), dpi=figure_dpi, facecolor=INPUT_BG)
+    axis = figure.add_subplot(111, facecolor=INPUT_BG)
+    colormap = _build_klippel_colormap()
 
-    min_freq = max(float(frequencies[0]), 1e-6)
-    max_freq = max(float(frequencies[-1]), min_freq + 1e-6)
-    min_angle = float(angle_set[0])
-    max_angle = float(angle_set[-1])
-    angle_span = max(max_angle - min_angle, 1e-6)
+    on_axis_index = int(np.argmin(np.abs(data.angles_deg)))
+    relative_db = data.spl_db - data.spl_db[on_axis_index, :][np.newaxis, :]
+    freq_axis = np.asarray(data.freq_hz, dtype=float)
+    angle_axis = np.asarray(data.angles_deg, dtype=float)
+
+    if mode == "raw":
+        image = axis.pcolormesh(
+            freq_axis,
+            angle_axis,
+            relative_db,
+            shading="nearest",
+            cmap=colormap,
+            vmin=vmin,
+            vmax=vmax,
+            antialiased=False,
+            rasterized=True,
+        )
+    else:
+        levels = np.linspace(vmin, vmax, 121, dtype=float)
+        image = axis.contourf(
+            freq_axis,
+            angle_axis,
+            relative_db,
+            levels=levels,
+            cmap=colormap,
+            vmin=vmin,
+            vmax=vmax,
+            extend="both",
+        )
+        contour_levels = [-12.0, -6.0]
+        contour = axis.contour(
+            freq_axis,
+            angle_axis,
+            relative_db,
+            levels=contour_levels,
+            colors="#111111",
+            linewidths=0.8,
+            alpha=0.78,
+        )
+        if len(getattr(contour, "levels", [])) > 0:
+            axis.clabel(contour, fmt={-12.0: "-12 dB", -6.0: "-6 dB"}, fontsize=7, inline=True)
 
     if log_x:
-        log_min = math.log10(min_freq)
-        log_max = math.log10(max_freq)
-        log_span = max(log_max - log_min, 1e-9)
+        axis.set_xscale("log")
 
-        def freq_to_x(freq: float) -> float:
-            return left + ((math.log10(max(freq, min_freq)) - log_min) / log_span) * plot_w
-    else:
-        freq_span = max(max_freq - min_freq, 1e-9)
+    common_ticks = [500, 1000, 2000, 5000, 10000, 20000]
+    min_freq = float(np.min(freq_axis))
+    max_freq = float(np.max(freq_axis))
+    x_ticks = [tick for tick in common_ticks if min_freq <= tick <= max_freq]
+    if x_ticks:
+        axis.set_xticks(x_ticks)
+    axis.xaxis.set_major_formatter(
+        ticker.FuncFormatter(
+            lambda value, _pos: f"{value/1000:.0f}k" if value >= 1000.0 else f"{value:.0f}"
+        )
+    )
+    axis.set_yticks(np.arange(math.ceil(float(np.min(angle_axis)) / 15.0) * 15.0, float(np.max(angle_axis)) + 0.1, 15.0))
+    axis.tick_params(axis="both", colors=TEXT, labelsize=9)
 
-        def freq_to_x(freq: float) -> float:
-            return left + ((freq - min_freq) / freq_span) * plot_w
+    axis.grid(True, which="major", color="#3c4c63", alpha=0.34, linewidth=0.7)
+    axis.grid(True, which="minor", color="#2a384d", alpha=0.16, linewidth=0.45)
+    axis.set_xlabel(f"Frequency [Hz] ({'log' if log_x else 'linear'})", color=MUTED, fontsize=9)
+    axis.set_ylabel("Angle [deg]", color=MUTED, fontsize=9)
 
-    def angle_to_y(angle: float) -> float:
-        return bottom - ((angle - min_angle) / angle_span) * plot_h
+    colorbar = figure.colorbar(image, ax=axis, pad=0.02, ticks=[-24, -18, -12, -6, 0, 6])
+    colorbar.ax.tick_params(labelsize=8, colors=TEXT)
+    colorbar.outline.set_edgecolor(BORDER)
+    colorbar.set_label("Relative SPL [dB re: on-axis]", color=MUTED, fontsize=8)
+    colorbar.ax.yaxis.label.set_color(MUTED)
 
-    freq_edges: list[float] = []
-    for index, freq in enumerate(frequencies):
-        if index == 0:
-            next_freq = frequencies[index + 1]
-            freq_edges.append(freq - ((next_freq - freq) / 2.0))
-        else:
-            prev_freq = frequencies[index - 1]
-            freq_edges.append((prev_freq + freq) / 2.0)
-    freq_edges.append(frequencies[-1] + ((frequencies[-1] - frequencies[-2]) / 2.0))
+    raw_nf = raw_reference.spl_db.shape[1]
+    raw_na = raw_reference.spl_db.shape[0]
+    caption = (
+        f"頻段離軸圖 ({'Smooth Display' if mode != 'raw' else 'Raw'}) | "
+        f"raw {raw_nf} freq × {raw_na} angles"
+    )
+    axis.set_title(
+        f"Band Map ({'Smooth Display' if mode != 'raw' else 'Raw'}) | raw {raw_nf}x{raw_na}",
+        color=TEXT,
+        fontsize=10,
+        pad=8,
+    )
+    figure.tight_layout()
 
-    angle_edges: list[float] = []
-    for index, angle in enumerate(angle_set):
-        if index == 0:
-            next_angle = angle_set[index + 1]
-            angle_edges.append(angle - ((next_angle - angle) / 2.0))
-        else:
-            prev_angle = angle_set[index - 1]
-            angle_edges.append((prev_angle + angle) / 2.0)
-    angle_edges.append(angle_set[-1] + ((angle_set[-1] - angle_set[-2]) / 2.0))
-
-    for fi, freq in enumerate(frequencies):
-        x0 = freq_to_x(max(freq_edges[fi], min_freq))
-        x1 = freq_to_x(max(freq_edges[fi + 1], min_freq))
-        if x1 < x0:
-            x0, x1 = x1, x0
-        for ai, angle in enumerate(angle_set):
-            y0 = angle_to_y(angle_edges[ai + 1])
-            y1 = angle_to_y(angle_edges[ai])
-            spl_rel = matrix.get((freq, angle), matrix.get((freq, on_axis_angle), 0.0)) - matrix.get((freq, on_axis_angle), 0.0)
-            color = _klippel_like_color(spl_rel, vmin=-24.0, vmax=6.0)
-            canvas.create_rectangle(x0, y0, x1, y1, outline="", fill=color)
-
-    canvas.create_rectangle(left, top, right, bottom, outline=BORDER)
-
-    if log_x:
-        tick_freqs = _build_log_ticks(min_freq, max_freq, max_ticks=10)
-    else:
-        tick_freqs = _build_linear_ticks(min_freq, max_freq, target_count=7)
-
-    for freq in tick_freqs:
-        x = freq_to_x(freq)
-        canvas.create_line(x, top, x, bottom, fill="#28374f")
-        canvas.create_line(x, bottom, x, bottom + 5, fill=BORDER)
-        label = _format_freq_tick(freq)
-        canvas.create_text(x, bottom + 16, text=label, fill=MUTED, font="AthUiCanvasSmallFont")
-
-    angle_major_ticks, angle_minor_ticks = _build_angle_ticks(min_angle, max_angle)
-    for angle in angle_minor_ticks:
-        y = angle_to_y(angle)
-        canvas.create_line(left, y, right, y, fill="#1c2a41")
-    for angle in angle_major_ticks:
-        y = angle_to_y(angle)
-        canvas.create_line(left, y, right, y, fill="#2b3d59")
-        canvas.create_line(left - 5, y, left, y, fill=BORDER)
-        canvas.create_text(left - 8, y, text=f"{angle:.0f}°", fill=MUTED, anchor="e", font="AthUiCanvasSmallFont")
-
-    canvas.create_text((left + right) / 2, height - 18, text=f"Frequency [Hz] ({'log' if log_x else 'linear'})", fill=MUTED, font="AthUiCanvasSmallFont")
-    canvas.create_text(18, (top + bottom) / 2, text="Angle [deg]", fill=MUTED, angle=90, font="AthUiCanvasSmallFont")
-
-    colorbar_x0 = right + 28
-    colorbar_x1 = colorbar_x0 + 16
-    colorbar_y0 = top
-    colorbar_y1 = bottom
-    colorbar_h = max(colorbar_y1 - colorbar_y0, 2)
-    for i in range(colorbar_h):
-        value = 6.0 - (30.0 * (i / max(colorbar_h - 1, 1)))
-        color = _klippel_like_color(value, vmin=-24.0, vmax=6.0)
-        y = colorbar_y0 + i
-        canvas.create_line(colorbar_x0, y, colorbar_x1, y, fill=color)
-    canvas.create_rectangle(colorbar_x0, colorbar_y0, colorbar_x1, colorbar_y1, outline=BORDER)
-    for value in (6, 0, -6, -12, -18, -24):
-        ratio = (6.0 - float(value)) / 30.0
-        y = colorbar_y0 + (ratio * colorbar_h)
-        canvas.create_line(colorbar_x1, y, colorbar_x1 + 4, y, fill=BORDER)
-        canvas.create_text(colorbar_x1 + 8, y, text=f"{value:+.0f}", fill=MUTED, anchor="w", font="AthUiCanvasSmallFont")
-    canvas.create_text(colorbar_x0 + 8, colorbar_y0 - 10, text="dB", fill=MUTED, anchor="s", font="AthUiCanvasSmallFont")
-
-    caption = f"頻段離軸圖（{len(frequencies)} freq × {len(angle_set)} angles, {'Log X' if log_x else 'Linear X'}）"
-    canvas.create_text((left + right) / 2, 10, text=caption, fill=TEXT, font="AthUiHeadingFont")
+    buffer = io.BytesIO()
+    figure.savefig(buffer, format="png", dpi=figure_dpi, facecolor=figure.get_facecolor())
+    plt.close(figure)
+    encoded = base64.b64encode(buffer.getvalue())
+    image_tk = tk.PhotoImage(data=encoded)
+    canvas.delete("all")
+    canvas.create_image(width / 2, height / 2, image=image_tk, anchor="center")
+    setattr(canvas, "_bandmap_photo", image_tk)
     return caption
+
+
+def _draw_band_map_raw(canvas: tk.Canvas, polar_rows: list[dict[str, float]], *, log_x: bool = True) -> str:
+    try:
+        render_data = _get_bandmap_render_data(canvas, polar_rows)
+    except Exception as exc:
+        draw_placeholder(canvas, f"Raw band map 資料處理失敗：{exc}")
+        return ""
+    try:
+        return _draw_band_map_with_matplotlib(
+            canvas,
+            data=render_data.raw,
+            raw_reference=render_data.raw,
+            mode="raw",
+            log_x=log_x,
+        )
+    except Exception as exc:
+        draw_placeholder(canvas, f"Raw band map 繪圖失敗：{exc}")
+        return ""
+
+
+def _draw_band_map_smooth(canvas: tk.Canvas, polar_rows: list[dict[str, float]], *, log_x: bool = True) -> str:
+    try:
+        render_data = _get_bandmap_render_data(canvas, polar_rows)
+    except Exception as exc:
+        draw_placeholder(canvas, f"Smooth band map 資料處理失敗：{exc}")
+        return ""
+    try:
+        return _draw_band_map_with_matplotlib(
+            canvas,
+            data=render_data.display,
+            raw_reference=render_data.raw,
+            mode="smooth",
+            log_x=log_x,
+        )
+    except Exception as exc:
+        draw_placeholder(canvas, f"Smooth band map 繪圖失敗：{exc}")
+        return ""
 
 
 def draw_directivity_view(
@@ -355,9 +432,14 @@ def draw_directivity_view(
     preferred_hz: float = 1000.0,
     log_x: bool = True,
 ) -> str:
+    normalized_mode = str(mode).strip().lower().replace(" ", "_")
     if not polar_rows:
         draw_placeholder(canvas, "請執行 BEM 並載入 `polar.csv`，即可在此顯示指向性。")
         return ""
-    if mode == "single_freq_polar":
+    if normalized_mode in {"single_freq_polar", "single_freq"}:
         return _draw_single_frequency_polar(canvas, polar_rows, preferred_hz=preferred_hz)
-    return _draw_band_map(canvas, polar_rows, log_x=log_x)
+    if normalized_mode in {"band_map_raw", "raw"}:
+        return _draw_band_map_raw(canvas, polar_rows, log_x=log_x)
+    if normalized_mode in {"band_map", "band_map_smooth", "smooth_display", "smooth"}:
+        return _draw_band_map_smooth(canvas, polar_rows, log_x=log_x)
+    return _draw_band_map_smooth(canvas, polar_rows, log_x=log_x)

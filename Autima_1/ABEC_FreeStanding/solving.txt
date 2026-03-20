@@ -21,7 +21,7 @@ Elements "SD1D1001"
   102 Mesh Include SD1D1001
 
 Driving "S1001"  // horn driver
-  RefElements="SD1D1001"; DrvGroup=1001; Direction=z
+  RefElements="SD1D1001"; DrvGroup=1001;
 
 Elements "SD2G0"
   Subdomain=2; MeshFileAlias="M1"

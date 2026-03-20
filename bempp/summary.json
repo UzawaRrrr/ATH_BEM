@@ -1,8 +1,8 @@
 {
   "status": "done",
-  "mesh_file": "E:/pythonGATH/Tritonia-M/ABEC_FreeStanding/Tritonia-M.msh",
-  "vertices": 1303,
-  "elements": 1782,
+  "mesh_file": "E:/pythonGATH/Autima_1_75/ABEC_FreeStanding/Autima_1_75.msh",
+  "vertices": 1164,
+  "elements": 1848,
   "source_groups": [
     2
   ],
@@ -13,16 +13,16 @@
   "plane": "XZ",
   "angle_range_mode": "half_circle",
   "theta_count": 37,
-  "freq_count": 30,
+  "freq_count": 36,
   "frequency_spacing": "log",
   "velocity_frequency_weighting": "none",
-  "runtime_sec": 72.452,
+  "runtime_sec": 120.242,
   "symmetry_enabled": true,
   "symmetry_mode": "quarter_xy_even_even",
   "warnings": [
     "Ignoring groups from boundary import: [4]",
-    "Plane x=0: detected 69 vertices on the symmetry rim.",
-    "Plane y=0: detected 76 vertices on the symmetry rim."
+    "Plane x=0: detected 82 vertices on the symmetry rim.",
+    "Plane y=0: detected 85 vertices on the symmetry rim."
   ],
   "notes": [
     "Rigid-wall behavior is modeled as zero normal velocity on all non-source surface groups.",
@@ -34,7 +34,7 @@
     "Mirrored source setup group=2, image=xe, direction=[0.0, 0.0, 1.0], dof=16, coeff_dtype=complex128, parity_sign_applied_in_operator_terms=True.",
     "Mirrored source setup group=2, image=ye, direction=[0.0, 0.0, 1.0], dof=16, coeff_dtype=complex128, parity_sign_applied_in_operator_terms=True.",
     "Mirrored source setup group=2, image=xe_ye, direction=[0.0, 0.0, 1.0], dof=16, coeff_dtype=complex128, parity_sign_applied_in_operator_terms=True.",
-    "Source group 2: 89 GMRES iterations at 1000.000 Hz with symmetry mode quarter_xy_even_even."
+    "Source group 2: 475 GMRES iterations at 1200.000 Hz with symmetry mode quarter_xy_even_even."
   ],
   "boundary_role_diagnostics": {
     "available_groups": [
@@ -49,12 +49,12 @@
       1,
       3
     ],
-    "source_area_m2": 0.00012339708366817658,
-    "wall_area_m2": 0.14126833498505872,
-    "total_area_m2": 0.1413917320687269,
-    "source_area_ratio": 0.0008727319614996753,
-    "wall_area_ratio": 0.9991272680385003,
-    "boundary_edge_count": 110,
+    "source_area_m2": 0.000123431738722152,
+    "wall_area_m2": 0.2213083409807623,
+    "total_area_m2": 0.22143177271948428,
+    "source_area_ratio": 0.0005574255997964603,
+    "wall_area_ratio": 0.9994425744002043,
+    "boundary_edge_count": 142,
     "nonmanifold_edge_count": 0,
     "connected_component_count": 1
   }

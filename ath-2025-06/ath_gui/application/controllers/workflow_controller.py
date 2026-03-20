@@ -12,7 +12,11 @@ from typing import Any
 
 from ...domain.specs import APP_TITLE, ATH_EXE, ROOT_DIR
 from ...infrastructure.bem_bridge import start_bem_solver, windows_path_to_wsl
-from ...infrastructure.bem_results import default_bem_result_dir
+from ...infrastructure.bem_results import (
+    create_bem_result_run_dir,
+    default_bem_result_dir,
+    write_latest_bem_result_dir,
+)
 from ...infrastructure.bem_state import build_job_payload
 from ...infrastructure.preview_core import compute_output_directory, find_generated_preview_file
 
@@ -96,22 +100,31 @@ class WorkflowController:
         global_state = self.app.collect_global_state()
         horn_state = self.app.collect_horn_state()
         output_dir = compute_output_directory(global_state, horn_state, Path(cfg_path))
-        result_dir = default_bem_result_dir(output_dir)
+        result_dir = create_bem_result_run_dir(
+            output_dir,
+            cfg_path=Path(cfg_path),
+            mesh_file=Path(mesh_file),
+        )
         job_file = result_dir / "job.json"
         log_file = result_dir / "solver.log"
 
         try:
             payload = build_job_payload(bem_state, Path(mesh_file), windows_path_to_wsl(Path(mesh_file)))
-            result_dir.mkdir(parents=True, exist_ok=True)
             job_file.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
             self.app.bem_launch = start_bem_solver(job_file, log_file)
         except Exception as exc:
+            try:
+                if result_dir.exists() and not any(result_dir.iterdir()):
+                    result_dir.rmdir()
+            except Exception:
+                pass
             self.app.bem_status_var.set("錯誤")
             messagebox.showerror(APP_TITLE, f"啟動 BEM 失敗：\n{exc}")
             return
 
         self.app.bem_last_result_dir = result_dir
         self.app.bem_last_log_path = log_file
+        write_latest_bem_result_dir(output_dir, result_dir)
         self.app.bem_result_path_var.set(str(result_dir))
         self.app.bem_status_var.set("執行中")
         self.app.mesh_status_var.set(str(mesh_file))

@@ -9,4 +9,4 @@ Scriptname_LEScript=
 [Observation]
 C0=observation.txt
 [MeshFiles]
-C0=test.msh,M1
+C0=Autima_1.msh,M1
