@@ -8,11 +8,15 @@ from .domain.config_core import (
     default_horn_state,
     load_global_state,
     load_horn_state,
+    normalize_branch_locked_horn_state,
     render_global_text,
     render_horn_text,
 )
+from .domain.design_recipe import DesignRecipe
 from .domain.specs import ATH_EXE, ROOT_DIR
 from .infrastructure.bem_bridge import build_bem_solver_command, expand_wsl_user_path, quote_bash_path, windows_path_to_wsl
+from .infrastructure.group_mapper import suggest_group_map
+from .infrastructure.project_workspace import create_workspace, latest_workspace_for_case, write_manifest
 from .infrastructure.bem_results import describe_bem_status, format_summary_text
 from .infrastructure.bem_state import build_job_payload, default_bem_state
 from .infrastructure.preview_core import (
@@ -68,6 +72,25 @@ CustomThing = 42
     assert "Output.STL = 1" in default_rendered
     assert "Output.MSH = 0" in default_rendered
     assert "Output.ABECProject = 0" in default_rendered
+
+    branch_state = default_horn_state()
+    branch_state["Throat.Profile"] = "1"
+    branch_state["GCurve.Type"] = "2"
+    branch_state["GCurve.Dist"] = "0.618"
+    branch_state["GCurve.Width"] = "150"
+    branch_state["GCurve.AspectRatio"] = "0.825"
+    branch_state["GCurve.SE.n"] = "0"
+    branch_state["GCurve.SF"] = "1,1,4,3.5,5,5"
+    branch_state["Morph.TargetShape"] = "0"
+    branch_state["Morph.TargetWidth"] = "200"
+    branch_state["Morph.TargetHeight"] = "120"
+    normalized_branch = normalize_branch_locked_horn_state(branch_state)
+    assert normalized_branch["GCurve.SE.n"] == ""
+    assert normalized_branch["GCurve.SF"] == "1,1,4,3.5,5,5"
+    assert normalized_branch["Morph.TargetWidth"] == "0"
+    assert normalized_branch["Morph.TargetHeight"] == "0"
+    branch_rendered = render_horn_text(normalized_branch)
+    assert "GCurve.SE.n" not in branch_rendered
 
     with tempfile.TemporaryDirectory() as temp_dir_name:
         temp_dir = Path(temp_dir_name)
@@ -211,6 +234,34 @@ CustomThing = 42
     assert "demo note" in formatted_summary
     assert describe_group_source("gmsh physical groups") == "Gmsh 物理群組"
     assert describe_bem_status("done") == "完成"
+
+    recipe = DesignRecipe(case_name="Autima_basic", symmetry_enabled=True, symmetry_planes=("x",))
+    compiled_ath = recipe.to_ath_state()
+    compiled_bem = recipe.to_bem_state()
+    assert compiled_ath["Output.MSH"] is True
+    assert compiled_bem["BEM.SymmetryMode"] == "half_x_even"
+
+    suggestion = suggest_group_map(
+        {
+            "group_source": "gmsh physical groups",
+            "detected_groups": [1001, 2, 3],
+            "element_count_per_group": {"1001": 40, "2": 400, "3": 120},
+            "group_name_map": {"1001": "DrvGroup", "2": "HornWall", "3": "InterfaceMain"},
+        }
+    )
+    assert suggestion.source_groups == [1001]
+    assert 2 in suggestion.wall_groups
+    assert 3 in suggestion.interface_groups
+
+    with tempfile.TemporaryDirectory() as temp_project_name:
+        projects_root = Path(temp_project_name)
+        workspace = create_workspace("Autima_basic", projects_root=projects_root)
+        assert workspace.input_dir.exists()
+        assert workspace.bempp_dir.exists()
+        write_manifest(workspace, {"status": "done"})
+        latest = latest_workspace_for_case("Autima_basic", projects_root=projects_root)
+        assert latest is not None
+        assert latest.run_root == workspace.run_root
 
     layer_result = check_layering()
     assert layer_result.ok, format_layering_report(layer_result)

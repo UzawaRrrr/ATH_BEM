@@ -9,7 +9,7 @@ from pathlib import Path
 from tkinter import font as tkfont
 from tkinter import filedialog, messagebox, ttk
 
-from .application.controllers import BemController, PreviewController, WorkflowController
+from .application.controllers import BemController, PreviewController, RunAllController, WorkflowController
 from .domain.auto_enclosure import derive_auto_enclosure
 from .domain.bem_specs import BEM_FIELD_SECTIONS
 from .domain.config_core import (
@@ -18,11 +18,13 @@ from .domain.config_core import (
     default_horn_state,
     load_global_state,
     load_horn_state,
+    normalize_branch_locked_horn_state,
     normalize_inline_block,
     read_text_file,
     render_global_text,
     render_horn_text,
 )
+from .domain.design_recipe import DesignRecipe
 from .domain.specs import (
     APP_TITLE,
     ATH_GLOBAL_CONFIG,
@@ -109,6 +111,9 @@ class AthConfigStudio(tk.Tk):
         self.status_card_collapsed = tk.BooleanVar(value=False)
         self.status_card_toggle_var = tk.StringVar(value="收合")
         self.status_card_summary_var = tk.StringVar(value="")
+        self.run_all_stage_var = tk.StringVar(value="idle")
+        self.run_all_status_var = tk.StringVar(value="Workflow idle.")
+        self.run_all_workspace_var = tk.StringVar(value="Workspace: (none)")
         self.bem_last_result_dir: Path | None = None
         self.bem_last_log_path: Path | None = None
         self.bem_polar_rows: list[dict[str, float]] = []
@@ -129,6 +134,7 @@ class AthConfigStudio(tk.Tk):
         self.preview_controller = PreviewController(self)
         self.bem_controller = BemController(self)
         self.workflow_controller = WorkflowController(self)
+        self.run_all_controller = RunAllController(self)
         self.preview_renderer = PreviewRenderer(self)
 
         self._configure_style()
@@ -299,10 +305,9 @@ class AthConfigStudio(tk.Tk):
         ttk.Button(quick_actions, text="開啟", style="Compact.Tool.TButton", command=self.open_horn_config).grid(row=0, column=1, padx=(0, 4))
         ttk.Button(quick_actions, text="儲存", style="Compact.Tool.TButton", command=self.save_horn_config).grid(row=0, column=2, padx=(0, 4))
         ttk.Button(quick_actions, text="另存", style="Compact.Tool.TButton", command=self.save_horn_config_as).grid(row=0, column=3, padx=(0, 4))
-        ttk.Button(quick_actions, text="存 ath.cfg", style="Compact.Tool.TButton", command=self.save_global_config).grid(row=0, column=4, padx=(0, 4))
-        ttk.Button(quick_actions, text="刷新預覽", style="Compact.Tool.TButton", command=self.refresh_preview).grid(row=0, column=5, padx=(0, 4))
-        ttk.Button(quick_actions, text="Auto ENC", style="Compact.Tool.TButton", command=self.apply_auto_enclosure).grid(row=0, column=6, padx=(0, 4))
-        ttk.Button(quick_actions, text="執行 ATH", style="Compact.Accent.TButton", command=self.run_ath).grid(row=0, column=7, padx=(2, 0))
+        ttk.Button(quick_actions, text="Auto ENC", style="Compact.Tool.TButton", command=self.apply_auto_enclosure).grid(row=0, column=4, padx=(0, 4))
+        ttk.Button(quick_actions, text="執行 ATH", style="Compact.Accent.TButton", command=self.run_ath).grid(row=0, column=5, padx=(2, 4))
+        ttk.Button(quick_actions, text="Run All", style="Compact.Accent.TButton", command=self.run_all_from_current_mode).grid(row=0, column=6, padx=(0, 0))
 
         subtitle_bar = ttk.Frame(header, style="App.TFrame")
         subtitle_bar.grid(row=1, column=0, sticky="ew", pady=(4, 0))
@@ -610,6 +615,14 @@ class AthConfigStudio(tk.Tk):
         ttk.Label(toolbar, text="BEM 狀態：", style="Hint.TLabel").grid(row=1, column=0, sticky="w", pady=(10, 0))
         ttk.Label(toolbar, textvariable=self.bem_status_var, style="Hint.TLabel").grid(row=1, column=1, columnspan=2, sticky="w", pady=(10, 0))
         ttk.Label(toolbar, textvariable=self.bem_result_path_var, style="Hint.TLabel").grid(row=1, column=3, columnspan=4, sticky="e", pady=(10, 0))
+        ttk.Label(toolbar, textvariable=self.run_all_stage_var, style="Hint.TLabel").grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        ttk.Label(toolbar, textvariable=self.run_all_status_var, style="Hint.TLabel", wraplength=600, justify="left").grid(
+            row=2,
+            column=2,
+            columnspan=5,
+            sticky="w",
+            pady=(6, 0),
+        )
 
         inner_rows = 1
         for description, fields in BEM_FIELD_SECTIONS:
@@ -966,13 +979,15 @@ class AthConfigStudio(tk.Tk):
             state[key] = self._get_widget_value(data)
         return state
 
-    def collect_horn_state(self) -> dict[str, object]:
+    def collect_horn_state(self, *, normalize_locked: bool = False) -> dict[str, object]:
         state = default_horn_state()
         for key, data in self.horn_widgets.items():
             value = self._get_widget_value(data)
             if key == "SOURCE.Contours":
                 value = normalize_inline_block(str(value), "Source.Contours")
             state[key] = value
+        if normalize_locked:
+            return normalize_branch_locked_horn_state(state)
         return state
 
     def collect_bem_state(self) -> dict[str, object]:
@@ -1077,7 +1092,7 @@ class AthConfigStudio(tk.Tk):
         return self._save_horn_to_path(Path(path))
 
     def _save_horn_to_path(self, path: Path) -> bool:
-        state = self.collect_horn_state()
+        state = self.collect_horn_state(normalize_locked=True)
         if not str(state.get("Length", "")).strip():
             messagebox.showerror(APP_TITLE, "ATH 號角定義必須填寫 Length。")
             return False
@@ -1090,7 +1105,7 @@ class AthConfigStudio(tk.Tk):
         return True
 
     def refresh_preview(self) -> None:
-        preview = render_horn_text(self.collect_horn_state())
+        preview = render_horn_text(self.collect_horn_state(normalize_locked=True))
         self.preview_text.configure(state="normal")
         self.preview_text.delete("1.0", "end")
         self.preview_text.insert("1.0", preview)
@@ -1178,6 +1193,97 @@ class AthConfigStudio(tk.Tk):
 
     def load_latest_output_preview(self) -> None:
         self.workflow_controller.load_latest_output_preview()
+
+    def collect_design_recipe(self) -> DesignRecipe:
+        horn_state = self.collect_horn_state(normalize_locked=True)
+        bem_state = self.collect_bem_state()
+
+        def _f(value: object, default: float) -> float:
+            try:
+                text = str(value).strip()
+                return float(text) if text else default
+            except Exception:
+                return default
+
+        def _i(value: object, default: int) -> int:
+            try:
+                text = str(value).strip()
+                return int(float(text)) if text else default
+            except Exception:
+                return default
+
+        case_name = Path(self.current_horn_path.get().strip()).stem or "demo_case"
+        mouth_shape_raw = str(horn_state.get("Morph.TargetShape", "0")).strip()
+        mouth_shape = {"0": "keep", "1": "rect", "2": "round"}.get(mouth_shape_raw, "keep")
+        source_mode = "axial" if str(horn_state.get("Source.Velocity", "1")).strip() == "2" else "normal"
+        source_shape = "disk" if str(horn_state.get("Source.Shape", "1")).strip() == "2" else "cap"
+
+        source_gain_text = str(bem_state.get("BEM.SourceGain", "1.0")).strip()
+        first_gain = source_gain_text.replace(";", ",").split(",")[0].strip() if source_gain_text else "1.0"
+        source_velocity = _f(first_gain, 1.0)
+
+        symmetry_mode = str(bem_state.get("BEM.SymmetryMode", "off")).strip().lower()
+        symmetry_enabled = symmetry_mode != "off"
+        symmetry_planes: tuple[str, ...]
+        if symmetry_mode == "half_x_even":
+            symmetry_planes = ("x",)
+        elif symmetry_mode == "half_y_even":
+            symmetry_planes = ("y",)
+        elif symmetry_mode == "quarter_xy_even_even":
+            symmetry_planes = ("x", "y")
+        else:
+            symmetry_planes = ()
+
+        return DesignRecipe(
+            case_name=case_name,
+            throat_diameter=_f(horn_state.get("Throat.Diameter"), 25.4),
+            horn_length=_f(horn_state.get("Length"), 160.0),
+            coverage_angle=_f(horn_state.get("Coverage.Angle"), 90.0),
+            mouth_shape=mouth_shape,
+            mouth_width=_f(horn_state.get("Morph.TargetWidth"), 0.0),
+            mouth_height=_f(horn_state.get("Morph.TargetHeight"), 0.0),
+            mouth_corner_radius=_f(horn_state.get("Morph.CornerRadius"), 35.0),
+            source_mode=source_mode,
+            source_shape=source_shape,
+            source_velocity=source_velocity,
+            auto_enclosure_enabled=False,
+            output_abec_project_enabled=bool(horn_state.get("Output.ABECProject", False)),
+            bem_f1=_f(bem_state.get("BEM.F1"), 200.0),
+            bem_f2=_f(bem_state.get("BEM.F2"), 20000.0),
+            bem_num_freq=_i(bem_state.get("BEM.NumFreq"), 48),
+            observation_plane=str(bem_state.get("BEM.Plane", "XZ")).strip().upper() or "XZ",
+            mic_distance=_f(bem_state.get("BEM.MicDistance"), 5.0),
+            symmetry_enabled=symmetry_enabled,
+            symmetry_planes=symmetry_planes,
+            notes="from_current_ui",
+        )
+
+    def apply_design_recipe(self, recipe: DesignRecipe) -> None:
+        horn_base = self.collect_horn_state()
+        bem_base = self.collect_bem_state()
+        ath_state = recipe.to_ath_state(base_state=horn_base)
+        if recipe.auto_enclosure_enabled:
+            ath_state = derive_auto_enclosure(ath_state)
+        bem_state = recipe.to_bem_state(base_state=bem_base)
+        self.apply_horn_state(ath_state)
+        self.apply_bem_state(bem_state)
+        self.status_var.set("已將 Recipe 套用到目前欄位。")
+        self._update_runtime_status()
+
+    def run_all_from_current_mode(self) -> None:
+        self.run_all_controller.run_all_from_ui()
+
+    def save_design_recipe(self) -> None:
+        self.run_all_controller.save_recipe()
+
+    def load_design_recipe(self) -> None:
+        self.run_all_controller.load_recipe()
+
+    def open_latest_workspace(self) -> None:
+        self.run_all_controller.open_workspace()
+
+    def load_workspace_results(self) -> None:
+        self.run_all_controller.reload_latest_workspace_results()
 
     def open_current_preview_external(self) -> None:
         if self.last_generated_preview_file is None:

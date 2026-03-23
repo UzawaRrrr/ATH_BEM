@@ -61,7 +61,9 @@ def _physical_groups_for_entity(gmsh_module: object, dimension: int, entity_tag:
 def inspect_mesh_file(mesh_file: Path, *, mesh_scale_to_meter: float = 1.0) -> dict[str, object]:
     import gmsh
 
-    gmsh.initialize()
+    # Run-All executes mesh inspection in a worker thread; disable Gmsh's
+    # interrupt signal hook to avoid Python main-thread signal restrictions.
+    gmsh.initialize(interruptible=False)
     gmsh.option.setNumber("General.Terminal", 0)
     try:
         gmsh.open(str(mesh_file))
@@ -104,16 +106,27 @@ def inspect_mesh_file(mesh_file: Path, *, mesh_scale_to_meter: float = 1.0) -> d
             raise ValueError("網格內沒有任何表面三角形元素。")
 
         warnings: list[str] = []
+        group_name_map: dict[str, str] = {}
         if physical_counts:
             group_source = "gmsh physical groups"
             counts = Counter()
             for group_id, amount in physical_counts:
                 counts[group_id] += amount
+            for group_id in counts:
+                try:
+                    group_name_map[str(group_id)] = str(gmsh.model.getPhysicalName(2, int(group_id)) or "")
+                except Exception:
+                    group_name_map[str(group_id)] = ""
         else:
             group_source = "gmsh surface entities"
             counts = Counter()
             for group_id, amount in entity_counts:
                 counts[group_id] += amount
+            for group_id in counts:
+                try:
+                    group_name_map[str(group_id)] = str(gmsh.model.getEntityName(2, int(group_id)) or "")
+                except Exception:
+                    group_name_map[str(group_id)] = ""
             warnings.append("找不到 Gmsh 物理群組；目前改用曲面實體標籤作為群組 ID。")
 
         return {
@@ -125,6 +138,7 @@ def inspect_mesh_file(mesh_file: Path, *, mesh_scale_to_meter: float = 1.0) -> d
             "group_source": group_source,
             "detected_groups": sorted(int(group_id) for group_id in counts),
             "element_count_per_group": {str(group_id): int(counts[group_id]) for group_id in sorted(counts)},
+            "group_name_map": group_name_map,
             "bbox": (
                 min(xs),
                 max(xs),
@@ -152,6 +166,7 @@ def format_mesh_info_text(info: dict[str, object]) -> str:
     bbox = info.get("bbox", (0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
     groups = [int(value) for value in info.get("detected_groups", [])]
     counts = info.get("element_count_per_group", {})
+    name_map = {str(key): str(value) for key, value in dict(info.get("group_name_map", {})).items()}
     node_count = info.get("node_count", info.get("vertices", "?"))
     element_count = info.get("element_count", info.get("elements", "?"))
     count_pairs = ", ".join(
@@ -174,6 +189,12 @@ def format_mesh_info_text(info: dict[str, object]) -> str:
         f"偵測到的群組：{_format_sequence(groups)}",
         f"各群組元素數：{count_pairs or '（無）'}",
     ]
+    named_preview = ", ".join(
+        f"{group_id}:{name_map.get(str(group_id), '') or '-'}"
+        for group_id in groups[:18]
+    )
+    if named_preview:
+        lines.append(f"群組名稱：{named_preview}")
 
     total_area = info.get("total_area_m2")
     if isinstance(total_area, (int, float)):

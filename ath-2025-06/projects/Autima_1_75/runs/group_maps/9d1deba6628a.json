@@ -1,0 +1,14 @@
+{
+  "schema": "ath.group_map.v1",
+  "mesh_family": "9d1deba6628a",
+  "source_groups": [],
+  "wall_groups": [],
+  "interface_groups": [],
+  "ignore_groups": [],
+  "confidence": "low",
+  "requires_confirmation": true,
+  "reasons": [
+    "no source group could be inferred."
+  ],
+  "confirmed_by_user": true
+}

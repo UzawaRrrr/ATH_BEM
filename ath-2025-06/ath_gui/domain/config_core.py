@@ -159,6 +159,42 @@ def default_horn_state() -> dict[str, object]:
     return state
 
 
+def normalize_branch_locked_horn_state(state: dict[str, object]) -> dict[str, object]:
+    """Drop or neutralize values that belong to inactive parameter branches.
+
+    This mirrors GUI dependency locking semantics so disabled branches do not
+    accidentally leak stale values into rendered cfg output.
+    """
+
+    normalized = dict(state)
+
+    def _clear(keys: tuple[str, ...]) -> None:
+        for key in keys:
+            normalized[key] = ""
+
+    throat_profile = str(normalized.get("Throat.Profile", "")).strip()
+    gcurve_type = str(normalized.get("GCurve.Type", "")).strip()
+
+    # Match current UI locking behavior: only enforce GCurve branch rules for
+    # OS-SE profile (`Throat.Profile = 1`).
+    if throat_profile == "1":
+        if gcurve_type == "":
+            _clear(("GCurve.Dist", "GCurve.Width", "GCurve.AspectRatio", "GCurve.SE.n", "GCurve.SF", "GCurve.Rot"))
+        elif gcurve_type == "1":
+            _clear(("GCurve.SF",))
+        elif gcurve_type == "2":
+            _clear(("GCurve.SE.n",))
+
+    # Keep shape branch deterministic: when "keep original shape", force
+    # target dimensions back to neutral values.
+    morph_target_shape = str(normalized.get("Morph.TargetShape", "")).strip()
+    if morph_target_shape in {"", "0"}:
+        normalized["Morph.TargetWidth"] = "0"
+        normalized["Morph.TargetHeight"] = "0"
+
+    return normalized
+
+
 def read_text_file(path: Path) -> str:
     for encoding in ("utf-8", "cp1252", "latin-1"):
         try:

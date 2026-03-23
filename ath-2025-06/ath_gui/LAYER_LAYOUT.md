@@ -19,10 +19,10 @@ Detailed enforcement and dependency rules live in:
 ## Current migration status
 
 - Active modules are now organized under:
-  - `domain/`: `specs.py`, `bem_specs.py`, `config_core.py`, `auto_enclosure.py`
-  - `infrastructure/`: `preview_core.py`, `bem_bridge.py`, `bem_mesh.py`, `bem_results.py`, `bem_state.py`
+  - `domain/`: `specs.py`, `bem_specs.py`, `config_core.py`, `auto_enclosure.py`, `design_recipe.py`
+  - `infrastructure/`: `preview_core.py`, `bem_bridge.py`, `bem_mesh.py`, `bem_results.py`, `bem_state.py`, `project_workspace.py`, `group_mapper.py`
   - `presentation/`: `bem_plot.py`, `widgets.py`, `opengl_preview.py`, `preview_renderer.py`
-  - `application/controllers/`: workflow / preview / BEM controllers
+  - `application/controllers/`: workflow / preview / BEM / run-all controllers
 - `ath_gui/controllers/` and previous root-level module names are retained as
   compatibility shims so older imports keep working.
 

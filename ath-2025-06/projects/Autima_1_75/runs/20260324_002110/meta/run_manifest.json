@@ -1,0 +1,39 @@
+{
+  "status": "error",
+  "started_at": "2026-03-24T00:21:10",
+  "finished_at": "2026-03-24T00:21:12",
+  "stages": [
+    {
+      "stage": "preparing",
+      "detail": "\u5efa\u7acb workspace \u8207\u521d\u59cb\u5316\u6d41\u7a0b\u4e2d...",
+      "time": "2026-03-24T00:21:10"
+    },
+    {
+      "stage": "saving recipe",
+      "detail": "\u5beb\u5165 recipe \u8207 cfg \u6a94\u6848...",
+      "time": "2026-03-24T00:21:10"
+    },
+    {
+      "stage": "running ATH",
+      "detail": "\u555f\u52d5 ATH \u751f\u6210\u7db2\u683c\u4e2d...",
+      "time": "2026-03-24T00:21:10"
+    },
+    {
+      "stage": "scanning mesh",
+      "detail": "\u6383\u63cf\u4e26\u6aa2\u67e5 ATH \u8f38\u51fa\u7db2\u683c\u4e2d...",
+      "time": "2026-03-24T00:21:12"
+    },
+    {
+      "stage": "error",
+      "detail": "Run All \u5931\u6557\uff1asignal only works in main thread of the main interpreter",
+      "time": "2026-03-24T00:21:12"
+    }
+  ],
+  "error": "signal only works in main thread of the main interpreter",
+  "schema": "ath.workspace_manifest.v1",
+  "case_name": "Autima_1_75",
+  "case_key": "Autima_1_75",
+  "run_id": "20260324_002110",
+  "workspace": "E:\\pythonGATH\\ath-2025-06\\projects\\Autima_1_75\\runs\\20260324_002110",
+  "updated_at": "2026-03-24T00:21:12"
+}

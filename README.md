@@ -50,6 +50,15 @@ ath-2025-06/                    # 主應用目錄
 4. **運行求解** → 通過 WSL 橋接調用 Linux 求解器
 5. **分析結果** → 查看 SPL 頻率響應和指向性極座標
 
+### Run All 一鍵流程（原本模式）
+
+- 在既有 `BEM` 分頁工具列新增 `Run All 一鍵流程`。
+- `Run All` 會自動執行：`ATH -> mesh inspect -> group auto mapping -> BEM -> result loading`。
+- 每次執行會建立可回溯 workspace：
+  - `ath-2025-06/projects/<case>/runs/<run_id>/input|ath|bempp|meta`
+- 你可維持原本欄位填寫習慣，不需要切換到額外模式。
+- 舊手動流程（`Run ATH / Inspect Mesh / Run BEM / Reload Results`）維持不變。
+
 ## 技術棧
 - **GUI**：Tkinter、matplotlib、VTK
 - **求解器**：bempp-cl (OpenCL 加速)、NumPy、SciPy
