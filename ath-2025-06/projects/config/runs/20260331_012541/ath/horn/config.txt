@@ -1,0 +1,38 @@
+; Ath version V2025-06
+; Created: 2026-03-30 17:25
+ABEC.NumFrequencies = 30
+ABEC.SimType = 2
+ABEC.f1 = 1500
+ABEC.f2 = 1600
+GCurve.AspectRatio = 0.825
+GCurve.Dist = 0.618
+GCurve.SF = 1,1,4,3.5,5,5
+GCurve.Type = 2
+GCurve.Width = 300
+Length = 248.016
+Mesh.AngularSegments = 64
+Mesh.Enclosure = {
+BackResolution = 25,25,25,25
+Depth = 310
+EdgeRadius = 10
+FrontResolution = 25,25,25,25
+Spacing = 10,10,10,10
+}
+Mesh.LengthSegments = 24
+Mesh.MouthResolution = 18
+Mesh.ThroatResolution = 6
+Morph.CornerRadius = 49.0735
+Morph.TargetHeight = 114.101
+Morph.TargetShape = 1
+Morph.TargetWidth = 180.3
+Output.ABECProject = 1
+Output.DestDir = E:\pythonGATH\ath-2025-06\projects\config\runs\20260331_012541\ath
+Output.MSH = 1
+Output.STL = 0
+Source.Radius = 25.4
+Source.Shape = 2
+Term.n = 4.71
+Term.q = 0.994
+Term.s = 0.618
+Throat.Angle = 10
+Throat.Diameter = 22.3487

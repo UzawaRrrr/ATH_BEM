@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import shlex
+import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
@@ -55,6 +57,15 @@ def quote_bash_path(path: str) -> str:
     return shlex.quote(text)
 
 
+def resolve_wsl_executable() -> str:
+    """Resolve `wsl.exe` to a stable absolute path when available."""
+    discovered = shutil.which("wsl.exe")
+    if discovered:
+        return discovered
+    fallback = Path(r"C:\Windows\System32\wsl.exe")
+    return str(fallback) if fallback.exists() else "wsl.exe"
+
+
 def build_bem_solver_command(
     job_file_wsl: str,
     *,
@@ -93,25 +104,70 @@ def start_bem_solver(
     job_file: Path,
     log_file: Path,
     *,
+    backend: str = "wsl",
     wsl_venv: str = DEFAULT_WSL_VENV,
     wsl_solver_root: str = DEFAULT_WSL_SOLVER_ROOT,
     wsl_solver_entry: str = DEFAULT_WSL_SOLVER_ENTRY,
+    local_python_exe: str = "",
+    conda_exe: str = "conda",
+    conda_env: str = "bempp",
 ) -> BemLaunch:
-    job_file_wsl = windows_path_to_wsl(job_file.resolve())
-    bash_command = build_bem_solver_command(
-        job_file_wsl,
-        wsl_venv=wsl_venv,
-        wsl_solver_root=wsl_solver_root,
-        wsl_solver_entry=wsl_solver_entry,
-    )
+    solver_entry = (ROOT_DIR / "bem_solver" / "solver_cli.py").resolve()
+    if not solver_entry.exists():
+        raise FileNotFoundError(f"BEM solver entry not found: {solver_entry}")
 
     log_file.parent.mkdir(parents=True, exist_ok=True)
     log_stream = log_file.open("w", encoding="utf-8", newline="\n")
-    process = subprocess.Popen(
-        ["wsl.exe", "bash", "-lc", bash_command],
-        cwd=str(ROOT_DIR),
-        stdout=log_stream,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-    return BemLaunch(process=process, log_stream=log_stream, bash_command=bash_command)
+    normalized_backend = str(backend).strip().lower() or "wsl"
+    if normalized_backend == "wsl":
+        job_file_wsl = windows_path_to_wsl(job_file.resolve())
+        command_text = build_bem_solver_command(
+            job_file_wsl,
+            wsl_venv=wsl_venv,
+            wsl_solver_root=wsl_solver_root,
+            wsl_solver_entry=wsl_solver_entry,
+        )
+        process = subprocess.Popen(
+            [resolve_wsl_executable(), "bash", "-lc", command_text],
+            cwd=str(ROOT_DIR),
+            stdout=log_stream,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        return BemLaunch(process=process, log_stream=log_stream, bash_command=command_text)
+
+    if normalized_backend == "local_python":
+        command = [
+            str(local_python_exe).strip() or sys.executable,
+            str(solver_entry),
+            str(job_file.resolve()),
+        ]
+        process = subprocess.Popen(
+            command,
+            cwd=str(ROOT_DIR),
+            stdout=log_stream,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        return BemLaunch(process=process, log_stream=log_stream, bash_command=" ".join(shlex.quote(part) for part in command))
+
+    if normalized_backend == "conda":
+        command = [
+            str(conda_exe).strip() or "conda",
+            "run",
+            "-n",
+            str(conda_env).strip() or "bempp",
+            "python",
+            str(solver_entry),
+            str(job_file.resolve()),
+        ]
+        process = subprocess.Popen(
+            command,
+            cwd=str(ROOT_DIR),
+            stdout=log_stream,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        return BemLaunch(process=process, log_stream=log_stream, bash_command=" ".join(shlex.quote(part) for part in command))
+
+    raise ValueError(f"Unsupported BEM backend: {backend}")

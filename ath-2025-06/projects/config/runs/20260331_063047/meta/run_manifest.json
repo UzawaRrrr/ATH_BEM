@@ -1,0 +1,61 @@
+{
+  "status": "error",
+  "started_at": "2026-03-31T06:30:47",
+  "stages": [
+    {
+      "stage": "preparing",
+      "detail": "headless runner setup",
+      "time": "2026-03-31T06:30:47"
+    },
+    {
+      "stage": "running ATH",
+      "detail": "ATH mesh generation",
+      "time": "2026-03-31T06:30:47"
+    }
+  ],
+  "workspace_paths": {
+    "run_root": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_063047",
+    "input": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_063047\\input",
+    "ath": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_063047\\ath",
+    "bempp": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_063047\\bempp",
+    "meta": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_063047\\meta"
+  },
+  "recipe": {
+    "case_name": "config",
+    "throat_diameter": 26.394663784720624,
+    "horn_length": 255.50098516171195,
+    "coverage_angle": 106.76817742446462,
+    "flare_style": "os",
+    "mouth_shape": "rect",
+    "mouth_width": 225.2646105697226,
+    "mouth_height": 146.00693014323647,
+    "mouth_corner_radius": 55.926709401728054,
+    "source_mode": "normal",
+    "source_shape": "disk",
+    "source_velocity": 1.6984365055300519,
+    "auto_enclosure_enabled": false,
+    "output_abec_project_enabled": true,
+    "bem_f1": 1500.0,
+    "bem_f2": 1600.0,
+    "bem_num_freq": 30,
+    "observation_plane": "XZ",
+    "mic_distance": 5.0,
+    "symmetry_enabled": true,
+    "symmetry_planes": [
+      "x",
+      "y"
+    ],
+    "notes": "from_current_ui",
+    "ath_overrides": {},
+    "bem_overrides": {},
+    "schema": "ath.design_recipe.v1"
+  },
+  "finished_at": "2026-03-31T07:00:47",
+  "error": "ATH timed out after 1800.0s.",
+  "schema": "ath.workspace_manifest.v1",
+  "case_name": "config",
+  "case_key": "config",
+  "run_id": "20260331_063047",
+  "workspace": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_063047",
+  "updated_at": "2026-03-31T07:00:47"
+}

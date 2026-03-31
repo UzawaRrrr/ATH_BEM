@@ -12,13 +12,18 @@ from tkinter import filedialog, messagebox
 from typing import Any, Callable, TypeVar
 
 from ...domain.auto_enclosure import derive_auto_enclosure
-from ...domain.config_core import normalize_branch_locked_horn_state, render_global_text, render_horn_text
+from ...domain.config_core import render_global_text, render_horn_text, sanitize_ath_state
 from ...domain.design_recipe import DesignRecipe
 from ...domain.specs import APP_TITLE
 from ...infrastructure.bem_bridge import start_bem_solver, windows_path_to_wsl
 from ...infrastructure.bem_mesh import format_mesh_info_text, inspect_mesh_file
-from ...infrastructure.bem_state import build_job_payload
-from ...infrastructure.group_mapper import mesh_family_key
+from ...infrastructure.bem_state import (
+    apply_group_map_to_bem_state,
+    build_bem_runtime_settings,
+    build_job_payload,
+    resolve_group_map_payload,
+    sanitize_bem_state,
+)
 from ...infrastructure.project_workspace import (
     ProjectWorkspace,
     create_workspace,
@@ -29,11 +34,6 @@ from ...infrastructure.project_workspace import (
 
 
 T = TypeVar("T")
-
-FIXED_SOURCE_GROUPS = [2]
-FIXED_WALL_GROUPS = [1, 3]
-FIXED_IGNORE_GROUPS = [4]
-FIXED_INTERFACE_GROUPS: list[int] = []
 
 
 class RunAllController:
@@ -202,6 +202,24 @@ class RunAllController:
     def _update_manifest(self, workspace: ProjectWorkspace, payload: dict[str, Any]) -> None:
         write_manifest(workspace, payload)
 
+    def _queue_result_load(self, workspace: ProjectWorkspace, success_detail: str) -> None:
+        def _load() -> None:
+            try:
+                self.app.load_bem_results(workspace.bempp_dir)
+                self.app.stop_bem_progress("BEM 已完成")
+                if hasattr(self.app, "run_all_status_var"):
+                    self.app.run_all_status_var.set(success_detail)
+                self.app.status_var.set(success_detail)
+            except Exception as exc:
+                self.app.stop_bem_progress("BEM 已完成，但結果載入失敗")
+                detail = f"{success_detail}；但自動載入結果失敗：{exc}"
+                if hasattr(self.app, "run_all_status_var"):
+                    self.app.run_all_status_var.set(detail)
+                self.app.status_var.set(detail)
+                self.app._update_runtime_status()
+
+        self.app.after(0, _load)
+
     def _run_all_worker(self, recipe: DesignRecipe) -> None:
         started_at = datetime.now().isoformat(timespec="seconds")
         stages: list[dict[str, str]] = []
@@ -243,17 +261,21 @@ class RunAllController:
             ath_state = recipe.to_ath_state(base_state=horn_base)
             if recipe.auto_enclosure_enabled:
                 ath_state = derive_auto_enclosure(ath_state)
-            ath_state = normalize_branch_locked_horn_state(ath_state)
+            ath_state = sanitize_ath_state(ath_state)
             ath_state["Output.DestDir"] = str(workspace.ath_dir)
             ath_state["Output.SubDir"] = ""
-            bem_state = recipe.to_bem_state(base_state=bem_base)
+            bem_state = sanitize_bem_state(recipe.to_bem_state(base_state=bem_base), ath_state)
+            bem_runtime = build_bem_runtime_settings(bem_state, ath_state)
+            ath_run_state = dict(ath_state)
+            if bool(bem_runtime.get("requires_ath_mesh_output", False)):
+                ath_run_state["Output.MSH"] = True
 
             workspace.design_recipe_path.write_text(
                 json.dumps(recipe.to_dict(), indent=2, ensure_ascii=True) + "\n",
                 encoding="utf-8",
             )
             workspace.ath_global_cfg_path.write_text(render_global_text(global_state), encoding="utf-8", newline="\n")
-            workspace.horn_cfg_path.write_text(render_horn_text(ath_state), encoding="utf-8", newline="\n")
+            workspace.horn_cfg_path.write_text(render_horn_text(ath_run_state), encoding="utf-8", newline="\n")
 
             def _apply_states() -> None:
                 self.app.apply_horn_state(ath_state)
@@ -265,22 +287,40 @@ class RunAllController:
             self._invoke_ui(_apply_states)
 
             add_stage("running ATH", "啟動 ATH 生成網格中...")
-            self._invoke_ui(self.app.run_ath)
+            self._invoke_ui(lambda: self.app.workflow_controller.run_ath(run_state=ath_run_state, cfg_path_override=workspace.horn_cfg_path))
             self._wait_for_ath_completion()
 
-            add_stage("scanning mesh", "掃描並檢查 ATH 輸出網格中...")
+            if not bool(bem_runtime.get("enabled", False)):
+                add_stage("done", f"Run All 已完成 ATH，BEM automation 停用：{workspace.run_root}")
+                manifest.update(
+                    {
+                        "status": "done",
+                        "finished_at": datetime.now().isoformat(timespec="seconds"),
+                        "result_dir": str(workspace.ath_dir),
+                        "bem_enabled": False,
+                    }
+                )
+                self._update_manifest(workspace, manifest)
+                return
+
+            add_stage("scanning mesh", "掃描並檢查 BEM 網格中...")
             from ...infrastructure.bem_mesh import find_generated_mesh_file
 
-            mesh_file = find_generated_mesh_file(workspace.ath_dir, workspace.horn_cfg_path)
+            mesh_source_mode = str(bem_runtime.get("mesh_source_mode", "latest_ath_output")).strip().lower()
+            if mesh_source_mode == "manual_mesh_file":
+                mesh_text = str(bem_state.get("BEM.MeshFile", "")).strip()
+                mesh_file = Path(mesh_text) if mesh_text else None
+            else:
+                mesh_file = find_generated_mesh_file(workspace.ath_dir, workspace.horn_cfg_path)
             if mesh_file is None or not mesh_file.exists():
-                raise FileNotFoundError("Run All 找不到可用的 ATH `.msh` 輸出。")
+                raise FileNotFoundError("Run All 找不到可用的 BEM `.msh` 輸入。")
 
-            bem_state["BEM.MeshFile"] = str(mesh_file)
             mesh_scale = float(bem_state.get("BEM.MeshScaleToMeter", 0.001))
-            mesh_info = inspect_mesh_file(mesh_file, mesh_scale_to_meter=mesh_scale)
+            mesh_info = inspect_mesh_file(Path(mesh_file), mesh_scale_to_meter=mesh_scale)
 
             def _apply_mesh_info() -> None:
-                self.app._set_widget_value(self.app.bem_widgets["BEM.MeshFile"], str(mesh_file))
+                if mesh_source_mode == "manual_mesh_file":
+                    self.app._set_widget_value(self.app.bem_widgets["BEM.MeshFile"], str(mesh_file))
                 self.app._set_text_widget(self.app.bem_mesh_text, format_mesh_info_text(mesh_info))
                 detected_groups = [int(value) for value in mesh_info.get("detected_groups", [])]
                 count_map = {str(key): int(value) for key, value in dict(mesh_info.get("element_count_per_group", {})).items()}
@@ -295,57 +335,24 @@ class RunAllController:
 
             self._invoke_ui(_apply_mesh_info)
 
-            add_stage("mapping groups", "套用固定分群規則中...")
-            detected_groups = {int(value) for value in mesh_info.get("detected_groups", [])}
-            required_groups = set(FIXED_SOURCE_GROUPS + FIXED_WALL_GROUPS)
-            missing_required = sorted(group_id for group_id in required_groups if group_id not in detected_groups)
-            if missing_required:
-                raise RuntimeError(
-                    "固定分群失敗：mesh 未包含必要群組 "
-                    f"{missing_required}，目前偵測到 {sorted(detected_groups)}。"
-                )
-
-            group_map_payload = {
-                "schema": "ath.group_map.v1",
-                "mesh_family": mesh_family_key(mesh_info),
-                "source_groups": list(FIXED_SOURCE_GROUPS),
-                "wall_groups": list(FIXED_WALL_GROUPS),
-                "interface_groups": list(FIXED_INTERFACE_GROUPS),
-                "ignore_groups": [group_id for group_id in FIXED_IGNORE_GROUPS if group_id in detected_groups],
-                "confidence": "manual_fixed",
-                "requires_confirmation": False,
-                "reasons": [
-                    "Fixed mapping by user request: source=2, wall=1,3, ignore=4.",
-                ],
-            }
+            add_stage("mapping groups", "套用 BEM group mapping 規則中...")
+            group_map_payload = resolve_group_map_payload(bem_state, mesh_info, ath_state)
 
             workspace.group_map_path.write_text(
                 json.dumps(group_map_payload, indent=2, ensure_ascii=True) + "\n",
                 encoding="utf-8",
             )
-
-            source_groups = [int(value) for value in group_map_payload.get("source_groups", [])]
-            wall_groups = [int(value) for value in group_map_payload.get("wall_groups", [])]
-            interface_groups = [int(value) for value in group_map_payload.get("interface_groups", [])]
-            ignore_groups = [int(value) for value in group_map_payload.get("ignore_groups", [])]
-            if not source_groups:
-                raise RuntimeError("GroupAutoMapper 沒有產生可用的 source groups。")
-
-            bem_state["BEM.SourceGroups"] = ",".join(str(value) for value in source_groups)
-            bem_state["BEM.WallGroups"] = ",".join(str(value) for value in wall_groups)
-            bem_state["BEM.InterfaceGroups"] = ",".join(str(value) for value in interface_groups)
-            bem_state["BEM.IgnoreGroups"] = ",".join(str(value) for value in ignore_groups)
-
-            self._invoke_ui(lambda: self.app.apply_bem_state(bem_state))
+            runtime_bem_state = apply_group_map_to_bem_state(bem_state, group_map_payload)
 
             add_stage("running BEM", "建立 job 並執行 BEM solver 中...")
-            job_payload = build_job_payload(bem_state, mesh_file, windows_path_to_wsl(mesh_file))
+            job_payload = build_job_payload(runtime_bem_state, Path(mesh_file), windows_path_to_wsl(Path(mesh_file)))
             workspace.job_path.write_text(json.dumps(job_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
             runtime_job_path = workspace.bempp_dir / "job.json"
             runtime_job_path.write_text(json.dumps(job_payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
 
             solver_log = workspace.bempp_dir / "solver.log"
-            launch = start_bem_solver(runtime_job_path, solver_log)
+            launch = start_bem_solver(runtime_job_path, solver_log, **dict(bem_runtime.get("launch_options", {})))
+            self._invoke_ui(lambda: self.app.start_bem_progress("Run All / BEM 求解中"))
             self._invoke_ui(lambda: self.app.bem_status_var.set("執行中"))
             return_code = launch.process.wait()
             launch.log_stream.close()
@@ -360,10 +367,11 @@ class RunAllController:
             if not summary_path.exists():
                 raise RuntimeError("BEM solver finished but summary.json was not found.")
 
-            add_stage("loading results", "載入 BEM 結果並更新 GUI 中...")
-            self._invoke_ui(lambda: self.app.load_bem_results(workspace.bempp_dir))
+            add_stage("loading results", "BEM 已完成，安排非阻塞結果載入中...")
+            self._invoke_ui(lambda: self.app.stop_bem_progress("BEM 已完成，結果載入中"))
 
-            add_stage("done", f"Run All 完成：{workspace.run_root}")
+            success_detail = f"Run All 完成：{workspace.run_root}"
+            add_stage("done", success_detail)
             manifest.update(
                 {
                     "status": "done",
@@ -374,7 +382,9 @@ class RunAllController:
                 }
             )
             self._update_manifest(workspace, manifest)
+            self._queue_result_load(workspace, success_detail)
         except Exception as exc:
+            self._invoke_ui(lambda: self.app.stop_bem_progress("BEM 執行失敗"))
             detail = f"Run All 失敗：{exc}"
             add_stage("error", detail)
             if workspace is not None:

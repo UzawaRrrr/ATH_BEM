@@ -1,0 +1,13 @@
+{
+  "ath_ok": false,
+  "bem_ok": false,
+  "post_ok": false,
+  "mesh_ok": false,
+  "geometry_ok": false,
+  "self_intersection": false,
+  "mesh_quality_ok": true,
+  "exit_code": 1,
+  "notes": [
+    "ATH failed with exit code 1."
+  ]
+}

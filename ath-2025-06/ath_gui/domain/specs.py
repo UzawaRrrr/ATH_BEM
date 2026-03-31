@@ -313,6 +313,336 @@ SIMPLE_FIELD_SPECS: dict[str, FieldSpec] = {
     )
 }
 
+
+def _reuse_field_specs(*keys: str) -> tuple[FieldSpec, ...]:
+    return tuple(SIMPLE_FIELD_SPECS[key] for key in keys)
+
+
+QUICK_GEOMETRY_FIELDS = _reuse_field_specs(
+    "Throat.Diameter",
+    "Throat.Angle",
+    "Length",
+    "Coverage.Angle",
+)
+
+QUICK_SHAPE_FIELDS = _reuse_field_specs(
+    "GCurve.Type",
+    "GCurve.Width",
+    "GCurve.AspectRatio",
+    "Morph.TargetShape",
+    "Morph.TargetWidth",
+    "Morph.TargetHeight",
+    "Morph.CornerRadius",
+)
+
+QUICK_SIM_FIELDS = _reuse_field_specs(
+    "ABEC.SimType",
+    "ABEC.f1",
+    "ABEC.f2",
+    "ABEC.NumFrequencies",
+    "POLAR.Distance",
+    "Output.SubDir",
+    "Output.STL",
+    "Output.MSH",
+    "Output.ABECProject",
+)
+
+QUICK_FIELD_SECTIONS = (
+    ("基本幾何", "常用的號角幾何參數。", QUICK_GEOMETRY_FIELDS),
+    ("口部 / 外形", "常用的口部尺寸與外形控制。", QUICK_SHAPE_FIELDS),
+    ("分析 / 輸出", "基本分析頻段與常用輸出開關。", QUICK_SIM_FIELDS),
+)
+
+GUIDED_CONTROLLER_KEYS = (
+    "Throat.Profile",
+    "GCurve.Type",
+    "Morph.TargetShape",
+    "Rollback",
+    "ABEC.SimType",
+)
+
+GUIDED_ALWAYS_VISIBLE_KEYS = GUIDED_CONTROLLER_KEYS
+
+GUIDED_FIELD_GROUPS: dict[str, tuple[str, ...]] = {
+    "GUIDED_PROFILE_CONTROLLER": ("Throat.Profile",),
+    "GUIDED_GCURVE_CONTROLLER": ("GCurve.Type",),
+    "GUIDED_MORPH_CONTROLLER": ("Morph.TargetShape",),
+    "GUIDED_ROLLBACK_CONTROLLER": ("Rollback",),
+    "GUIDED_ABEC_CONTROLLER": ("ABEC.SimType",),
+    "GUIDED_BASE_GEOMETRY": (
+        "Throat.Diameter",
+        "Length",
+        "Throat.Angle",
+        "Throat.Ext.Angle",
+        "Throat.Ext.Length",
+        "Slot.Length",
+        "Rot",
+    ),
+    "GUIDED_COVERAGE": ("Coverage.Angle",),
+    "GUIDED_PROFILE_OS": ("Term.s", "Term.q", "Term.n", "OS.k"),
+    "GUIDED_PROFILE_CIRCARC": ("CircArc.Radius", "CircArc.TermAngle"),
+    "GUIDED_GCURVE_COMMON": ("GCurve.Dist", "GCurve.Width", "GCurve.AspectRatio", "GCurve.Rot"),
+    "GUIDED_GCURVE_SUPERELLIPSE": ("GCurve.SE.n",),
+    "GUIDED_GCURVE_SUPERFORMULA": ("GCurve.SF",),
+    "GUIDED_MORPH_DIMENSIONS": ("Morph.TargetWidth", "Morph.TargetHeight"),
+    "GUIDED_MORPH_CORNER": ("Morph.CornerRadius",),
+    "GUIDED_MORPH_BEHAVIOR": ("Morph.FixedPart", "Morph.Rate", "Morph.AllowShrinkage"),
+    "GUIDED_ROLLBACK_DETAILS": ("Rollback.StartAt", "Rollback.Angle"),
+    "GUIDED_ABEC_COMMON": (
+        "ABEC.SimProfile",
+        "ABEC.f1",
+        "ABEC.f2",
+        "ABEC.NumFrequencies",
+        "ABEC.Abscissa",
+        "ABEC.MeshFrequency",
+    ),
+    "GUIDED_POLAR_COMMON": (
+        "POLAR.Tag",
+        "POLAR.MapAngleRange",
+        "POLAR.NormAngle",
+        "POLAR.Distance",
+        "POLAR.Offset",
+        "POLAR.Inclination",
+        "POLAR.Curves",
+    ),
+    "GUIDED_OUTPUT_COMMON": ("Output.SubDir", "Output.STL", "Output.MSH", "Output.ABECProject"),
+}
+
+GUIDED_BASE_GROUPS = (
+    "GUIDED_PROFILE_CONTROLLER",
+    "GUIDED_MORPH_CONTROLLER",
+    "GUIDED_ABEC_CONTROLLER",
+    "GUIDED_BASE_GEOMETRY",
+    "GUIDED_COVERAGE",
+    "GUIDED_ABEC_COMMON",
+    "GUIDED_POLAR_COMMON",
+    "GUIDED_OUTPUT_COMMON",
+)
+
+GUIDED_RULES: dict[str, dict[str, dict[str, object]]] = {
+    "Throat.Profile": {
+        "__default__": {
+            "relevant_groups": ("GUIDED_COVERAGE",),
+            "inactive_groups": {
+                "GUIDED_PROFILE_OS": "Only used for the OS-SE throat profile.",
+                "GUIDED_PROFILE_CIRCARC": "Only used for the circular-arc throat profile.",
+                "GUIDED_GCURVE_CONTROLLER": "Guiding Curve is only available for the OS-SE throat profile.",
+                "GUIDED_GCURVE_COMMON": "Guiding Curve details are only available for the OS-SE throat profile.",
+                "GUIDED_GCURVE_SUPERELLIPSE": "Only used for GCurve.Type = superellipse.",
+                "GUIDED_GCURVE_SUPERFORMULA": "Only used for GCurve.Type = superformula.",
+            },
+        },
+        "1": {
+            "relevant_groups": ("GUIDED_COVERAGE", "GUIDED_PROFILE_OS", "GUIDED_GCURVE_CONTROLLER"),
+            "inactive_groups": {
+                "GUIDED_PROFILE_CIRCARC": "Only used for the circular-arc throat profile.",
+            },
+        },
+        "3": {
+            "relevant_groups": ("GUIDED_COVERAGE", "GUIDED_PROFILE_CIRCARC"),
+            "inactive_groups": {
+                "GUIDED_PROFILE_OS": "Only used for the OS-SE throat profile.",
+                "GUIDED_GCURVE_CONTROLLER": "Guiding Curve is only available for the OS-SE throat profile.",
+                "GUIDED_GCURVE_COMMON": "Guiding Curve details are only available for the OS-SE throat profile.",
+                "GUIDED_GCURVE_SUPERELLIPSE": "Only used for GCurve.Type = superellipse.",
+                "GUIDED_GCURVE_SUPERFORMULA": "Only used for GCurve.Type = superformula.",
+            },
+        },
+    },
+    "GCurve.Type": {
+        "__inactive__": {
+            "inactive_groups": {
+                "GUIDED_GCURVE_COMMON": "Guiding Curve is only available when Throat.Profile = OS-SE.",
+                "GUIDED_GCURVE_SUPERELLIPSE": "Only used for GCurve.Type = superellipse.",
+                "GUIDED_GCURVE_SUPERFORMULA": "Only used for GCurve.Type = superformula.",
+            },
+        },
+        "__default__": {
+            "relevant_groups": ("GUIDED_COVERAGE",),
+            "inactive_groups": {
+                "GUIDED_GCURVE_COMMON": "Only used when a Guiding Curve type is selected.",
+                "GUIDED_GCURVE_SUPERELLIPSE": "Only used for GCurve.Type = superellipse.",
+                "GUIDED_GCURVE_SUPERFORMULA": "Only used for GCurve.Type = superformula.",
+            },
+        },
+        "1": {
+            "relevant_groups": ("GUIDED_GCURVE_COMMON", "GUIDED_GCURVE_SUPERELLIPSE"),
+            "inactive_groups": {
+                "GUIDED_COVERAGE": "Coverage.Angle is ignored while Guiding Curve drives the mouth coverage.",
+                "GUIDED_GCURVE_SUPERFORMULA": "Only used for GCurve.Type = superformula.",
+            },
+        },
+        "2": {
+            "relevant_groups": ("GUIDED_GCURVE_COMMON", "GUIDED_GCURVE_SUPERFORMULA"),
+            "inactive_groups": {
+                "GUIDED_COVERAGE": "Coverage.Angle is ignored while Guiding Curve drives the mouth coverage.",
+                "GUIDED_GCURVE_SUPERELLIPSE": "Only used for GCurve.Type = superellipse.",
+            },
+        },
+    },
+    "Morph.TargetShape": {
+        "__default__": {
+            "inactive_groups": {
+                "GUIDED_MORPH_DIMENSIONS": "Morph dimensions are only used when a target shape is selected.",
+                "GUIDED_MORPH_CORNER": "Corner radius is only used for rectangular morph targets.",
+                "GUIDED_MORPH_BEHAVIOR": "Morph behavior settings are only used when a target shape is selected.",
+            },
+        },
+        "0": {
+            "inactive_groups": {
+                "GUIDED_MORPH_DIMENSIONS": "Morph dimensions are only used when a target shape is selected.",
+                "GUIDED_MORPH_CORNER": "Corner radius is only used for rectangular morph targets.",
+                "GUIDED_MORPH_BEHAVIOR": "Morph behavior settings are only used when a target shape is selected.",
+            },
+        },
+        "1": {
+            "relevant_groups": ("GUIDED_MORPH_DIMENSIONS", "GUIDED_MORPH_CORNER", "GUIDED_MORPH_BEHAVIOR"),
+        },
+        "2": {
+            "relevant_groups": ("GUIDED_MORPH_DIMENSIONS", "GUIDED_MORPH_BEHAVIOR"),
+            "inactive_groups": {
+                "GUIDED_MORPH_CORNER": "Corner radius is only used for rectangular morph targets.",
+            },
+        },
+    },
+    "ABEC.SimType": {
+        "__default__": {
+            "inactive_groups": {
+                "GUIDED_ROLLBACK_CONTROLLER": "Rollback is only used for the free-standing horn simulation mode.",
+                "GUIDED_ROLLBACK_DETAILS": "Rollback details are only used for the free-standing horn simulation mode.",
+            },
+        },
+        "1": {
+            "inactive_groups": {
+                "GUIDED_ROLLBACK_CONTROLLER": "Rollback is only used for the free-standing horn simulation mode.",
+                "GUIDED_ROLLBACK_DETAILS": "Rollback details are only used for the free-standing horn simulation mode.",
+            },
+        },
+        "2": {
+            "relevant_groups": ("GUIDED_ROLLBACK_CONTROLLER",),
+            "inactive_groups": {
+                "GUIDED_ROLLBACK_DETAILS": "Rollback details are only used when Rollback is enabled.",
+            },
+        },
+    },
+    "Rollback": {
+        "__inactive__": {
+            "inactive_groups": {
+                "GUIDED_ROLLBACK_DETAILS": "Rollback details are only used for the free-standing horn simulation mode.",
+            },
+        },
+        "__default__": {
+            "inactive_groups": {
+                "GUIDED_ROLLBACK_DETAILS": "Rollback details are only used when Rollback is enabled.",
+            },
+        },
+        "1": {
+            "relevant_groups": ("GUIDED_ROLLBACK_DETAILS",),
+        },
+    },
+}
+
+GUIDED_SANITIZE_RESET_VALUES: dict[str, object] = {
+    "Coverage.Angle": "",
+    "Term.s": "",
+    "Term.q": "",
+    "Term.n": "",
+    "OS.k": "",
+    "CircArc.Radius": "",
+    "CircArc.TermAngle": "",
+    "GCurve.Type": "",
+    "GCurve.Dist": "",
+    "GCurve.Width": "",
+    "GCurve.AspectRatio": "",
+    "GCurve.SE.n": "",
+    "GCurve.SF": "",
+    "GCurve.Rot": "",
+    "Morph.TargetWidth": "0",
+    "Morph.TargetHeight": "0",
+    "Morph.CornerRadius": "",
+    "Morph.FixedPart": "",
+    "Morph.Rate": "",
+    "Morph.AllowShrinkage": False,
+    "Rollback": False,
+    "Rollback.StartAt": "",
+    "Rollback.Angle": "",
+}
+
+GUIDED_FIELD_SECTIONS = (
+    ("設計模式", "先選擇情境控制欄位，下面會只顯示目前 relevant 的設定。", _reuse_field_specs(*GUIDED_CONTROLLER_KEYS)),
+    (
+        "輪廓與導引",
+        "依 throat/profile 與 guiding curve 類型動態切換欄位；完整欄位仍保留在原本分頁。",
+        _reuse_field_specs(
+            "Throat.Diameter",
+            "Length",
+            "Throat.Angle",
+            "Throat.Ext.Angle",
+            "Throat.Ext.Length",
+            "Slot.Length",
+            "Rot",
+            "Coverage.Angle",
+            "Term.s",
+            "Term.q",
+            "Term.n",
+            "OS.k",
+            "CircArc.Radius",
+            "CircArc.TermAngle",
+            "GCurve.Dist",
+            "GCurve.Width",
+            "GCurve.AspectRatio",
+            "GCurve.SE.n",
+            "GCurve.SF",
+            "GCurve.Rot",
+        ),
+    ),
+    (
+        "口部 Morph",
+        "依目標形狀只顯示需要的口部尺寸與 Morph 細項。",
+        _reuse_field_specs(
+            "Morph.TargetWidth",
+            "Morph.TargetHeight",
+            "Morph.CornerRadius",
+            "Morph.FixedPart",
+            "Morph.Rate",
+            "Morph.AllowShrinkage",
+        ),
+    ),
+    (
+        "Rollback",
+        "Rollback 只在對應模擬模式下可用，並在啟用後顯示細項。",
+        _reuse_field_specs("Rollback.StartAt", "Rollback.Angle"),
+    ),
+    (
+        "模擬與輸出",
+        "保留常用 ABEC、極座標與輸出欄位；進階調整仍可到完整分頁。",
+        _reuse_field_specs(
+            "ABEC.SimProfile",
+            "ABEC.f1",
+            "ABEC.f2",
+            "ABEC.NumFrequencies",
+            "ABEC.Abscissa",
+            "ABEC.MeshFrequency",
+            "POLAR.Tag",
+            "POLAR.MapAngleRange",
+            "POLAR.NormAngle",
+            "POLAR.Distance",
+            "POLAR.Offset",
+            "POLAR.Inclination",
+            "POLAR.Curves",
+            "Output.SubDir",
+            "Output.STL",
+            "Output.MSH",
+            "Output.ABECProject",
+        ),
+    ),
+)
+
+_guided_field_keys: list[str] = []
+for _fields in GUIDED_FIELD_GROUPS.values():
+    _guided_field_keys.extend(_fields)
+GUIDED_MANAGED_KEYS = tuple(dict.fromkeys(_guided_field_keys))
+
 HORN_SAMPLE_VALUES = {
     "Throat.Diameter": "25.4",
     "Throat.Angle": "10",

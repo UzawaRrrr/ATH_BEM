@@ -4,15 +4,22 @@ import argparse
 import os
 import subprocess
 import sys
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import font as tkfont
 from tkinter import filedialog, messagebox, ttk
 
-from .application.controllers import BemController, PreviewController, RunAllController, WorkflowController
+from .application.controllers import BemController, OptimizationController, PreviewController, RunAllController, WorkflowController
 from .domain.auto_enclosure import derive_auto_enclosure
-from .domain.bem_specs import BEM_FIELD_SECTIONS
+from .domain.bem_specs import (
+    BEM_FIELD_SECTIONS,
+    BEM_GUIDED_ALWAYS_VISIBLE_KEYS,
+    BEM_GUIDED_CONTROLLER_KEYS,
+    BEM_GUIDED_FIELD_SECTIONS,
+)
 from .domain.config_core import (
+    build_guided_field_states,
     build_field_hint,
     default_global_state,
     default_horn_state,
@@ -23,8 +30,10 @@ from .domain.config_core import (
     read_text_file,
     render_global_text,
     render_horn_text,
+    sanitize_ath_state,
 )
 from .domain.design_recipe import DesignRecipe
+from .domain.optimizer_specs import OPTIMIZER_FIELD_SECTIONS, default_optimizer_state
 from .domain.specs import (
     APP_TITLE,
     ATH_GLOBAL_CONFIG,
@@ -38,15 +47,24 @@ from .domain.specs import (
     CARD,
     CARD_ALT,
     FIELD_SECTIONS,
+    GUIDED_ALWAYS_VISIBLE_KEYS,
+    GUIDED_CONTROLLER_KEYS,
+    GUIDED_FIELD_SECTIONS,
     INPUT_BG,
     MUTED,
+    QUICK_FIELD_SECTIONS,
     ROOT_DIR,
     TEXT,
     FieldSpec,
 )
 from .infrastructure.bem_bridge import BemLaunch
 from .infrastructure.bem_mesh import guess_latest_mesh_file
-from .infrastructure.bem_state import default_bem_state
+from .infrastructure.bem_state import (
+    build_bem_guided_field_states,
+    build_bem_runtime_settings,
+    default_bem_state,
+    sanitize_bem_state,
+)
 from .infrastructure.preview_core import (
     build_preview_command,
     compute_output_directory,
@@ -83,7 +101,11 @@ class AthConfigStudio(tk.Tk):
 
         self.global_widgets: dict[str, dict[str, object]] = {}
         self.horn_widgets: dict[str, dict[str, object]] = {}
+        self.quick_widgets: dict[str, dict[str, object]] = {}
+        self.guided_widgets: dict[str, dict[str, object]] = {}
+        self.guided_bem_widgets: dict[str, dict[str, object]] = {}
         self.bem_widgets: dict[str, dict[str, object]] = {}
+        self.optimizer_widgets: dict[str, dict[str, object]] = {}
         self.current_horn_path = tk.StringVar(value="")
         self.status_var = tk.StringVar(value="就緒。")
         self.ath_process: subprocess.Popen[bytes] | None = None
@@ -103,6 +125,7 @@ class AthConfigStudio(tk.Tk):
         self.mesh_status_var = tk.StringVar(value="BEM 網格：未指定")
         self.group_status_var = tk.StringVar(value="分群狀態：尚未檢查")
         self.bem_status_var = tk.StringVar(value="閒置")
+        self.bem_progress_var = tk.StringVar(value="BEM 進度：閒置")
         self.bem_result_path_var = tk.StringVar(value="尚未執行任何 BEM 工作。")
         self.bem_plot_caption_var = tk.StringVar(value="執行 BEM 後將在此顯示指向性極座標圖。")
         self.bem_plot_mode_var = tk.StringVar(value="Smooth Display")
@@ -114,9 +137,15 @@ class AthConfigStudio(tk.Tk):
         self.run_all_stage_var = tk.StringVar(value="idle")
         self.run_all_status_var = tk.StringVar(value="Workflow idle.")
         self.run_all_workspace_var = tk.StringVar(value="Workspace: (none)")
+        self.optimizer_status_var = tk.StringVar(value="Study idle.")
+        self.optimizer_trial_var = tk.StringVar(value="Trial: 0 / 0")
+        self.optimizer_best_score_var = tk.StringVar(value="Best score: (none)")
+        self.optimizer_study_dir_var = tk.StringVar(value="Study dir: (none)")
         self.bem_last_result_dir: Path | None = None
         self.bem_last_log_path: Path | None = None
         self.bem_polar_rows: list[dict[str, float]] = []
+        self.optimizer_log_text: tk.Text | None = None
+        self.optimizer_best_text: tk.Text | None = None
         self.opengl_preview: OpenGLPreviewHost | None = None
         self.preview_backend_var = tk.StringVar(value="預覽後端：Canvas")
         self.preview_yaw_deg = 32.0
@@ -129,12 +158,22 @@ class AthConfigStudio(tk.Tk):
         self.preview_show_normals_var = tk.BooleanVar(value=True)
         self._suspend_dependency_refresh = False
         self._dependency_trace_tokens: list[tuple[tk.Variable, str]] = []
+        self._suspend_quick_sync = False
+        self._quick_dirty = False
+        self._quick_trace_tokens: list[tuple[tk.Variable, str]] = []
+        self._active_controls_tab_id = ""
+        self._bem_progress_running = False
+        self._bem_progress_phase = "BEM 進度：閒置"
+        self._bem_progress_started_at = 0.0
+        self._bem_progress_after_id: str | None = None
+        self.bem_progress_bar: ttk.Progressbar | None = None
         self.font_family = self._resolve_ui_font_family()
         self._configure_fonts()
         self.preview_controller = PreviewController(self)
         self.bem_controller = BemController(self)
         self.workflow_controller = WorkflowController(self)
         self.run_all_controller = RunAllController(self)
+        self.optimization_controller = OptimizationController(self)
         self.preview_renderer = PreviewRenderer(self)
 
         self._configure_style()
@@ -338,8 +377,11 @@ class AthConfigStudio(tk.Tk):
         self.notebook = ttk.Notebook(controls_host)
         self.notebook.grid(row=0, column=0, sticky="nsew")
 
+        self.control_tabs: dict[str, ttk.Frame] = {}
         self.tab_bodies: dict[str, ttk.Frame] = {}
         tab_titles = {
+            "QuickStart": "Quick Start",
+            "Guided": "Guided Setup",
             "Global": "全域",
             "Geometry": "幾何",
             "Morph": "變形",
@@ -347,12 +389,15 @@ class AthConfigStudio(tk.Tk):
             "Simulation": "模擬",
             "Output": "輸出",
             "BEM": "BEM",
+            "Optimize": "Optimize",
             "Advanced": "進階",
         }
-        for tab_name in ("Global", "Geometry", "Morph", "Mesh", "Simulation", "Output", "BEM", "Advanced"):
+        for tab_name in ("QuickStart", "Guided", "Global", "Geometry", "Morph", "Mesh", "Simulation", "Output", "BEM", "Optimize", "Advanced"):
             scroll = ScrollableFrame(self.notebook)
             self.notebook.add(scroll, text=tab_titles[tab_name])
+            self.control_tabs[tab_name] = scroll
             self.tab_bodies[tab_name] = scroll.inner
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_controls_tab_changed)
 
         self.workspace_notebook = ttk.Notebook(workspace_host)
         self.workspace_notebook.grid(row=0, column=0, sticky="nsew")
@@ -362,9 +407,10 @@ class AthConfigStudio(tk.Tk):
             "Polar": "指向性",
             "MeshInfo": "網格摘要",
             "Summary": "BEM 摘要",
+            "Study": "最佳化",
             "TextPreview": "設定文字",
         }
-        for key in ("Geometry3D", "Polar", "MeshInfo", "Summary", "TextPreview"):
+        for key in ("Geometry3D", "Polar", "MeshInfo", "Summary", "Study", "TextPreview"):
             frame = ttk.Frame(self.workspace_notebook, style="App.TFrame")
             frame.columnconfigure(0, weight=1)
             frame.rowconfigure(0, weight=1)
@@ -372,6 +418,8 @@ class AthConfigStudio(tk.Tk):
             self.workspace_tabs[key] = frame
 
         self._build_sections()
+        self.notebook.select(self.control_tabs["QuickStart"])
+        self._active_controls_tab_id = str(self.control_tabs["QuickStart"])
 
         footer = ttk.Frame(root, style="App.TFrame", padding=(0, 8, 0, 0))
         footer.grid(row=2, column=0, sticky="ew")
@@ -403,8 +451,21 @@ class AthConfigStudio(tk.Tk):
             width=6,
         ).grid(row=0, column=1, sticky="e", padx=(8, 0))
 
+        progress_frame = ttk.Frame(card, style="Card.TFrame")
+        progress_frame.grid(row=1, column=0, sticky="ew", pady=(0, 6))
+        progress_frame.columnconfigure(0, weight=1)
+        ttk.Label(
+            progress_frame,
+            textvariable=self.bem_progress_var,
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=280,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+        self.bem_progress_bar = ttk.Progressbar(progress_frame, mode="indeterminate", length=260)
+        self.bem_progress_bar.grid(row=1, column=0, sticky="ew")
+
         details = ttk.Frame(card, style="Card.TFrame")
-        details.grid(row=1, column=0, sticky="ew")
+        details.grid(row=2, column=0, sticky="ew")
         details.columnconfigure(1, weight=1)
         self.status_card_details = details
 
@@ -412,6 +473,7 @@ class AthConfigStudio(tk.Tk):
             ("預覽", self.preview_status_var),
             ("分群", self.group_status_var),
             ("BEM", self.bem_status_var),
+            ("OPT", self.optimizer_status_var),
             ("網格", self.mesh_status_var),
         ]
         for row, (label, variable) in enumerate(labels):
@@ -435,8 +497,58 @@ class AthConfigStudio(tk.Tk):
     def _refresh_status_card_summary(self) -> None:
         preview = self.preview_status_var.get().replace("預覽狀態：", "").strip()
         bem = self.bem_status_var.get().strip()
+        optimizer = self.optimizer_status_var.get().strip()
         group = self.group_status_var.get().replace("分群狀態：", "").strip()
-        self.status_card_summary_var.set(f"預覽 {preview} | BEM {bem} | 分群 {group}")
+        self.status_card_summary_var.set(f"預覽 {preview} | BEM {bem} | OPT {optimizer} | 分群 {group}")
+
+    def _format_elapsed_text(self, elapsed_sec: float) -> str:
+        total_sec = max(0, int(elapsed_sec))
+        hours, remainder = divmod(total_sec, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours:d}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes:02d}:{seconds:02d}"
+
+    def _refresh_bem_progress_text(self) -> None:
+        if self._bem_progress_running:
+            elapsed = self._format_elapsed_text(time.monotonic() - self._bem_progress_started_at)
+            self.bem_progress_var.set(f"{self._bem_progress_phase} | 已耗時 {elapsed}")
+            return
+        self.bem_progress_var.set(self._bem_progress_phase)
+
+    def _schedule_bem_progress_tick(self) -> None:
+        if not self._bem_progress_running:
+            self._bem_progress_after_id = None
+            return
+        self._refresh_bem_progress_text()
+        self._bem_progress_after_id = self.after(1000, self._schedule_bem_progress_tick)
+
+    def start_bem_progress(self, phase: str) -> None:
+        self._bem_progress_phase = str(phase).strip() or "BEM 求解中"
+        self._bem_progress_started_at = time.monotonic()
+        self._bem_progress_running = True
+        if self._bem_progress_after_id is not None:
+            self.after_cancel(self._bem_progress_after_id)
+            self._bem_progress_after_id = None
+        if self.bem_progress_bar is not None:
+            self.bem_progress_bar.configure(mode="indeterminate")
+            self.bem_progress_bar.start(12)
+        self._refresh_bem_progress_text()
+        self._schedule_bem_progress_tick()
+
+    def update_bem_progress(self, phase: str) -> None:
+        self._bem_progress_phase = str(phase).strip() or self._bem_progress_phase
+        self._refresh_bem_progress_text()
+
+    def stop_bem_progress(self, phase: str = "BEM 進度：閒置") -> None:
+        self._bem_progress_running = False
+        self._bem_progress_phase = str(phase).strip() or "BEM 進度：閒置"
+        if self._bem_progress_after_id is not None:
+            self.after_cancel(self._bem_progress_after_id)
+            self._bem_progress_after_id = None
+        if self.bem_progress_bar is not None:
+            self.bem_progress_bar.stop()
+        self._refresh_bem_progress_text()
 
     def _set_status_card_collapsed(self, collapsed: bool) -> None:
         self.status_card_collapsed.set(collapsed)
@@ -452,6 +564,7 @@ class AthConfigStudio(tk.Tk):
 
     def _build_sections(self) -> None:
         container_rows = {tab: 0 for tab in self.tab_bodies}
+        self._build_quick_start_panel(self.tab_bodies["QuickStart"])
         for tab_name, description, fields in FIELD_SECTIONS:
             target = self.tab_bodies[tab_name]
             card = ttk.LabelFrame(target, text=description, style="Card.TLabelframe", padding=14)
@@ -465,9 +578,12 @@ class AthConfigStudio(tk.Tk):
 
         self._build_preview_panel(self.workspace_tabs["Geometry3D"])
         self._build_bem_panel(self.tab_bodies["BEM"])
+        self._build_optimizer_panel(self.tab_bodies["Optimize"])
+        self._build_guided_panel(self.tab_bodies["Guided"])
         self._build_polar_panel(self.workspace_tabs["Polar"])
         self._build_mesh_info_panel(self.workspace_tabs["MeshInfo"])
         self._build_bem_summary_panel(self.workspace_tabs["Summary"])
+        self._build_optimizer_workspace_panel(self.workspace_tabs["Study"])
 
         preview_card = ttk.LabelFrame(
             self.workspace_tabs["TextPreview"],
@@ -500,7 +616,82 @@ class AthConfigStudio(tk.Tk):
             wraplength=720,
         ).grid(row=0, column=0, sticky="w")
         self._bind_dependency_traces()
+        self._bind_quick_traces()
         self.refresh_dependency_states()
+
+    def _build_quick_start_panel(self, target: ttk.Frame) -> None:
+        target.columnconfigure(0, weight=1)
+
+        intro = ttk.LabelFrame(target, text="Quick Start", style="Card.TLabelframe", padding=14)
+        intro.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
+        intro.columnconfigure(0, weight=1)
+        ttk.Label(
+            intro,
+            text="這裡提供常用參數快速設定；進階參數仍可在其他分頁調整。",
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w")
+
+        row = 1
+        for title, description, fields in QUICK_FIELD_SECTIONS:
+            card = ttk.LabelFrame(target, text=title, style="Card.TLabelframe", padding=14)
+            card.grid(row=row, column=0, sticky="ew", padx=14, pady=(14, 0))
+            card.columnconfigure(1, weight=1)
+            ttk.Label(
+                card,
+                text=description,
+                style="Hint.TLabel",
+                justify="left",
+                wraplength=720,
+            ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
+            self._populate_card(card, fields, self.quick_widgets, start_row=1)
+            row += 1
+
+    def _build_guided_panel(self, target: ttk.Frame) -> None:
+        target.columnconfigure(0, weight=1)
+
+        intro = ttk.LabelFrame(target, text="Guided Setup", style="Card.TLabelframe", padding=14)
+        intro.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
+        intro.columnconfigure(0, weight=1)
+        ttk.Label(
+            intro,
+            text="依目前設計模式只顯示相關參數；完整參數仍可在其他分頁調整。"
+                 "切換模式時不會直接清掉原本輸入，只有儲存/預覽/執行前才會套用 sanitize。"
+                 "下方也包含 BEM automation 的獨立執行設定，這些欄位不會寫進 ATH cfg。",
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w")
+
+        row = 1
+        for title, description, fields in GUIDED_FIELD_SECTIONS:
+            card = ttk.LabelFrame(target, text=title, style="Card.TLabelframe", padding=14)
+            card.grid(row=row, column=0, sticky="ew", padx=14, pady=(14, 0))
+            card.columnconfigure(1, weight=1)
+            ttk.Label(
+                card,
+                text=description,
+                style="Hint.TLabel",
+                justify="left",
+                wraplength=720,
+            ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
+            self._populate_card(card, fields, self.guided_widgets, start_row=1, shared_widget_map=self.horn_widgets)
+            row += 1
+
+        for title, description, fields in BEM_GUIDED_FIELD_SECTIONS:
+            card = ttk.LabelFrame(target, text=title, style="Card.TLabelframe", padding=14)
+            card.grid(row=row, column=0, sticky="ew", padx=14, pady=(14, 0))
+            card.columnconfigure(1, weight=1)
+            ttk.Label(
+                card,
+                text=description,
+                style="Hint.TLabel",
+                justify="left",
+                wraplength=720,
+            ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
+            self._populate_card(card, fields, self.guided_bem_widgets, start_row=1, shared_widget_map=self.bem_widgets)
+            row += 1
 
     def _build_preview_panel(self, target: ttk.Frame) -> None:
         target.columnconfigure(0, weight=1)
@@ -632,6 +823,87 @@ class AthConfigStudio(tk.Tk):
             self._populate_card(card, fields, self.bem_widgets)
             inner_rows += 1
 
+    def _build_optimizer_panel(self, target: ttk.Frame) -> None:
+        target.columnconfigure(0, weight=1)
+
+        intro = ttk.LabelFrame(target, text="Optuna / Optimizer", style="Card.TLabelframe", padding=14)
+        intro.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
+        intro.columnconfigure(0, weight=1)
+        ttk.Label(
+            intro,
+            text=(
+                "這裡是 GUI 版最佳化控制入口。最佳化會重用目前 GUI 的 horn/global/BEM 狀態作為 base template，"
+                "再交給 headless runner 執行 trial。BEM backend / WSL / conda 設定仍以 BEM 分頁欄位為準。"
+            ),
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w")
+
+        action_card = ttk.LabelFrame(target, text="Study 控制", style="Card.TLabelframe", padding=14)
+        action_card.grid(row=1, column=0, sticky="ew", padx=14, pady=(14, 0))
+        action_card.columnconfigure(4, weight=1)
+        ttk.Button(action_card, text="開始最佳化", style="Accent.TButton", command=self.run_optimizer_study).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(action_card, text="完成當前 Trial 後停止", style="Tool.TButton", command=self.stop_optimizer_study).grid(row=0, column=1, padx=(0, 8))
+        ttk.Button(action_card, text="套用最佳結果", style="Tool.TButton", command=self.apply_best_optimizer_trial).grid(row=0, column=2, padx=(0, 8))
+        ttk.Button(action_card, text="開啟 Study 目錄", style="Tool.TButton", command=self.open_optimizer_study_dir).grid(row=0, column=3, padx=(0, 8))
+        ttk.Label(action_card, textvariable=self.optimizer_status_var, style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        ttk.Label(action_card, textvariable=self.optimizer_trial_var, style="Hint.TLabel").grid(row=1, column=2, sticky="w", pady=(10, 0))
+        ttk.Label(action_card, textvariable=self.optimizer_best_score_var, style="Hint.TLabel").grid(row=1, column=3, sticky="w", pady=(10, 0))
+        ttk.Label(action_card, textvariable=self.optimizer_study_dir_var, style="Hint.TLabel", wraplength=700, justify="left").grid(
+            row=2,
+            column=0,
+            columnspan=5,
+            sticky="w",
+            pady=(8, 0),
+        )
+
+        row = 2
+        for description, fields in OPTIMIZER_FIELD_SECTIONS:
+            card = ttk.LabelFrame(target, text=description, style="Card.TLabelframe", padding=14)
+            card.grid(row=row, column=0, sticky="ew", padx=14, pady=(14, 0))
+            card.columnconfigure(1, weight=1)
+            self._populate_card(card, fields, self.optimizer_widgets)
+            row += 1
+
+    def _build_optimizer_workspace_panel(self, target: ttk.Frame) -> None:
+        target.columnconfigure(0, weight=1)
+        target.rowconfigure(1, weight=1)
+        target.rowconfigure(2, weight=1)
+
+        summary_card = ttk.LabelFrame(target, text="Study 摘要", style="Card.TLabelframe", padding=14)
+        summary_card.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 10))
+        summary_card.columnconfigure(1, weight=1)
+        ttk.Label(summary_card, text="狀態", style="CardLabel.TLabel").grid(row=0, column=0, sticky="nw", padx=(0, 10))
+        ttk.Label(summary_card, textvariable=self.optimizer_status_var, style="Hint.TLabel", wraplength=920, justify="left").grid(row=0, column=1, sticky="nw")
+        ttk.Label(summary_card, text="Trial", style="CardLabel.TLabel").grid(row=1, column=0, sticky="nw", padx=(0, 10), pady=(8, 0))
+        ttk.Label(summary_card, textvariable=self.optimizer_trial_var, style="Hint.TLabel").grid(row=1, column=1, sticky="nw", pady=(8, 0))
+        ttk.Label(summary_card, text="Best", style="CardLabel.TLabel").grid(row=2, column=0, sticky="nw", padx=(0, 10), pady=(8, 0))
+        ttk.Label(summary_card, textvariable=self.optimizer_best_score_var, style="Hint.TLabel").grid(row=2, column=1, sticky="nw", pady=(8, 0))
+        ttk.Label(summary_card, text="Study Dir", style="CardLabel.TLabel").grid(row=3, column=0, sticky="nw", padx=(0, 10), pady=(8, 0))
+        ttk.Label(summary_card, textvariable=self.optimizer_study_dir_var, style="Hint.TLabel", wraplength=920, justify="left").grid(
+            row=3,
+            column=1,
+            sticky="nw",
+            pady=(8, 0),
+        )
+
+        log_card = ttk.LabelFrame(target, text="Study Log", style="Card.TLabelframe", padding=14)
+        log_card.grid(row=1, column=0, sticky="nsew", padx=14, pady=(0, 10))
+        log_card.columnconfigure(0, weight=1)
+        log_card.rowconfigure(0, weight=1)
+        self.optimizer_log_text = self._make_dark_text(log_card, height=12, wrap="word")
+        self.optimizer_log_text.grid(row=0, column=0, sticky="nsew")
+        self.optimizer_log_text.configure(state="disabled")
+
+        best_card = ttk.LabelFrame(target, text="Best Trial", style="Card.TLabelframe", padding=14)
+        best_card.grid(row=2, column=0, sticky="nsew", padx=14, pady=(0, 18))
+        best_card.columnconfigure(0, weight=1)
+        best_card.rowconfigure(0, weight=1)
+        self.optimizer_best_text = self._make_dark_text(best_card, height=12, wrap="word")
+        self.optimizer_best_text.grid(row=0, column=0, sticky="nsew")
+        self.optimizer_best_text.configure(state="disabled")
+
     def _build_mesh_info_panel(self, target: ttk.Frame) -> None:
         target.columnconfigure(0, weight=1)
         target.rowconfigure(0, weight=1)
@@ -694,8 +966,16 @@ class AthConfigStudio(tk.Tk):
         self.bem_polar_canvas.bind("<Configure>", lambda _event: self._refresh_bem_plot())
         self.after(50, lambda: draw_bem_placeholder(self.bem_polar_canvas, "執行 BEM 後會在此顯示指向性曲線。"))
 
-    def _populate_card(self, card: ttk.LabelFrame, fields: tuple[FieldSpec, ...], widget_map: dict[str, dict[str, object]]) -> None:
-        row = 0
+    def _populate_card(
+        self,
+        card: ttk.LabelFrame,
+        fields: tuple[FieldSpec, ...],
+        widget_map: dict[str, dict[str, object]],
+        *,
+        start_row: int = 0,
+        shared_widget_map: dict[str, dict[str, object]] | None = None,
+    ) -> None:
+        row = start_row
         for spec in fields:
             label_widget = ttk.Label(card, text=spec.label, style="CardLabel.TLabel")
             label_widget.grid(row=row, column=0, sticky="nw", padx=(0, 14), pady=(0, 12))
@@ -703,30 +983,63 @@ class AthConfigStudio(tk.Tk):
             control_frame.grid(row=row, column=1, sticky="ew", pady=(0, 12))
             control_frame.columnconfigure(0, weight=1)
             browse_button: ttk.Button | None = None
+            shared_data = shared_widget_map.get(spec.key) if shared_widget_map is not None else None
 
             if spec.kind == "check":
-                var = tk.BooleanVar(value=bool(spec.default))
+                if shared_data is not None and isinstance(shared_data.get("var"), tk.Variable):
+                    var = shared_data["var"]
+                else:
+                    var = tk.BooleanVar(value=bool(spec.default))
                 widget = ttk.Checkbutton(control_frame, variable=var)
                 widget.grid(row=0, column=0, sticky="w")
-                widget_map[spec.key] = {"spec": spec, "var": var, "widget": widget, "label_widget": label_widget}
+                widget_map[spec.key] = {
+                    "spec": spec,
+                    "var": var,
+                    "widget": widget,
+                    "label_widget": label_widget,
+                    "control_frame": control_frame,
+                }
             elif spec.kind == "combo":
-                var = tk.StringVar(value=str(spec.default))
+                if shared_data is not None and isinstance(shared_data.get("var"), tk.Variable):
+                    var = shared_data["var"]
+                else:
+                    var = tk.StringVar(value=str(spec.default))
                 widget = ttk.Combobox(control_frame, textvariable=var, values=spec.choices, width=spec.width, state="readonly")
                 widget.grid(row=0, column=0, sticky="ew")
-                widget_map[spec.key] = {"spec": spec, "var": var, "widget": widget, "label_widget": label_widget}
+                widget_map[spec.key] = {
+                    "spec": spec,
+                    "var": var,
+                    "widget": widget,
+                    "label_widget": label_widget,
+                    "control_frame": control_frame,
+                }
             elif spec.kind == "multiline":
                 height = 8 if spec.key == "ADVANCED.Raw" else 7
                 widget = self._make_dark_text(control_frame, height=height, wrap="word")
                 widget.grid(row=0, column=0, sticky="ew")
-                widget_map[spec.key] = {"spec": spec, "widget": widget, "label_widget": label_widget}
+                widget_map[spec.key] = {
+                    "spec": spec,
+                    "widget": widget,
+                    "label_widget": label_widget,
+                    "control_frame": control_frame,
+                }
             else:
                 entry_frame = ttk.Frame(control_frame, style="Card.TFrame")
                 entry_frame.grid(row=0, column=0, sticky="ew")
                 entry_frame.columnconfigure(0, weight=1)
-                var = tk.StringVar(value=str(spec.default))
+                if shared_data is not None and isinstance(shared_data.get("var"), tk.Variable):
+                    var = shared_data["var"]
+                else:
+                    var = tk.StringVar(value=str(spec.default))
                 widget = ttk.Entry(entry_frame, textvariable=var, width=spec.width)
                 widget.grid(row=0, column=0, sticky="ew")
-                widget_map[spec.key] = {"spec": spec, "var": var, "widget": widget, "label_widget": label_widget}
+                widget_map[spec.key] = {
+                    "spec": spec,
+                    "var": var,
+                    "widget": widget,
+                    "label_widget": label_widget,
+                    "control_frame": control_frame,
+                }
                 if spec.browse:
                     browse_button = ttk.Button(
                         entry_frame,
@@ -752,52 +1065,19 @@ class AthConfigStudio(tk.Tk):
                 hint_label.grid_remove()
             row += 1
 
-    def compute_field_enablement(self, state: dict[str, object]) -> dict[str, dict[str, object]]:
-        """Return per-field enablement and reason for OS-SE/GCurve mode dependencies."""
-        rules = {
-            "Coverage.Angle": {"enabled": True, "reason": ""},
-            "GCurve.Dist": {"enabled": True, "reason": ""},
-            "GCurve.Width": {"enabled": True, "reason": ""},
-            "GCurve.AspectRatio": {"enabled": True, "reason": ""},
-            "GCurve.SE.n": {"enabled": True, "reason": ""},
-            "GCurve.SF": {"enabled": True, "reason": ""},
-            "GCurve.Rot": {"enabled": True, "reason": ""},
-        }
-        throat_profile = str(state.get("Throat.Profile", "")).strip()
-        gcurve_type = str(state.get("GCurve.Type", "")).strip()
-        if throat_profile != "1":
-            return rules
-
-        if gcurve_type == "":
-            rules["Coverage.Angle"] = {"enabled": True, "reason": ""}
-            reason = "Only used when a Guiding Curve is defined."
-            rules["GCurve.Dist"] = {"enabled": False, "reason": "Only used when Guiding Curve is active."}
-            rules["GCurve.Width"] = {"enabled": False, "reason": reason}
-            rules["GCurve.AspectRatio"] = {"enabled": False, "reason": reason}
-            rules["GCurve.SE.n"] = {"enabled": False, "reason": "Only used for GCurve.Type = 1 (superellipse)."}
-            rules["GCurve.SF"] = {"enabled": False, "reason": "Only used for GCurve.Type = 2 (superformula)."}
-            rules["GCurve.Rot"] = {"enabled": False, "reason": reason}
-            return rules
-
-        if gcurve_type == "1":
-            rules["Coverage.Angle"] = {"enabled": False, "reason": "Ignored when Guiding Curve is active (ATH auto-coverage)."}
-            rules["GCurve.Dist"] = {"enabled": True, "reason": ""}
-            rules["GCurve.Width"] = {"enabled": True, "reason": ""}
-            rules["GCurve.AspectRatio"] = {"enabled": True, "reason": ""}
-            rules["GCurve.SE.n"] = {"enabled": True, "reason": ""}
-            rules["GCurve.SF"] = {"enabled": False, "reason": "Only used for GCurve.Type = 2 (superformula)."}
-            rules["GCurve.Rot"] = {"enabled": True, "reason": ""}
-            return rules
-
-        if gcurve_type == "2":
-            rules["Coverage.Angle"] = {"enabled": False, "reason": "Ignored when Guiding Curve is active (ATH auto-coverage)."}
-            rules["GCurve.Dist"] = {"enabled": True, "reason": ""}
-            rules["GCurve.Width"] = {"enabled": True, "reason": ""}
-            rules["GCurve.AspectRatio"] = {"enabled": True, "reason": ""}
-            rules["GCurve.SE.n"] = {"enabled": False, "reason": "Only used for GCurve.Type = 1 (superellipse)."}
-            rules["GCurve.SF"] = {"enabled": True, "reason": ""}
-            rules["GCurve.Rot"] = {"enabled": True, "reason": ""}
-        return rules
+    def _set_field_visible(self, data: dict[str, object], *, visible: bool) -> None:
+        label_widget = data.get("label_widget")
+        control_frame = data.get("control_frame")
+        if isinstance(label_widget, ttk.Label):
+            if visible:
+                label_widget.grid()
+            else:
+                label_widget.grid_remove()
+        if isinstance(control_frame, ttk.Frame):
+            if visible:
+                control_frame.grid()
+            else:
+                control_frame.grid_remove()
 
     def _set_widget_enabled(self, data: dict[str, object], *, enabled: bool) -> None:
         spec: FieldSpec = data["spec"]
@@ -815,20 +1095,27 @@ class AthConfigStudio(tk.Tk):
         if browse_button is not None:
             browse_button.state(["!disabled"] if enabled else ["disabled"])
 
-    def apply_field_enablement(self, rules: dict[str, dict[str, object]]) -> None:
-        """Apply GUI enable/disable states and reasons based on dependency rules."""
-        for key, rule in rules.items():
-            data = self.horn_widgets.get(key)
-            if not data:
-                continue
-            enabled = bool(rule.get("enabled", True))
+    def apply_field_states(
+        self,
+        widget_map: dict[str, dict[str, object]],
+        rules: dict[str, dict[str, object]],
+        *,
+        hide_irrelevant: bool,
+        always_visible_keys: tuple[str, ...] = (),
+    ) -> None:
+        always_visible = set(always_visible_keys) if hide_irrelevant else set()
+        for key, data in widget_map.items():
+            rule = rules.get(key, {"relevant": True, "reason": ""})
+            relevant = bool(rule.get("relevant", True))
             reason = str(rule.get("reason", "")).strip()
-            self._set_widget_enabled(data, enabled=enabled)
+            visible = relevant or key in always_visible or not hide_irrelevant
+            self._set_field_visible(data, visible=visible)
+            self._set_widget_enabled(data, enabled=relevant)
 
             hint_label = data.get("hint_label")
             if isinstance(hint_label, ttk.Label):
                 base_hint = str(data.get("base_hint", "")).strip()
-                if enabled:
+                if relevant:
                     hint_text = base_hint
                 else:
                     hint_text = f"{base_hint}\nIgnored: {reason}".strip() if base_hint else f"Ignored: {reason}"
@@ -840,12 +1127,28 @@ class AthConfigStudio(tk.Tk):
 
             label_widget = data.get("label_widget")
             if isinstance(label_widget, ttk.Label):
-                label_widget.configure(style="CardLabel.TLabel" if enabled else "Hint.TLabel")
+                label_widget.configure(style="CardLabel.TLabel" if relevant else "Hint.TLabel")
 
     def refresh_dependency_states(self) -> None:
-        state = self.collect_horn_state()
-        rules = self.compute_field_enablement(state)
-        self.apply_field_enablement(rules)
+        horn_state = self.collect_horn_state()
+        horn_rules = build_guided_field_states(horn_state)
+        self.apply_field_states(self.horn_widgets, horn_rules, hide_irrelevant=False)
+        self.apply_field_states(
+            self.guided_widgets,
+            horn_rules,
+            hide_irrelevant=True,
+            always_visible_keys=GUIDED_ALWAYS_VISIBLE_KEYS,
+        )
+
+        ath_effective_state = sanitize_ath_state(horn_state)
+        bem_rules = build_bem_guided_field_states(self.collect_bem_state(), ath_effective_state)
+        self.apply_field_states(self.bem_widgets, bem_rules, hide_irrelevant=False)
+        self.apply_field_states(
+            self.guided_bem_widgets,
+            bem_rules,
+            hide_irrelevant=True,
+            always_visible_keys=BEM_GUIDED_ALWAYS_VISIBLE_KEYS,
+        )
 
     def _on_dependency_field_changed(self, *_args: object) -> None:
         if self._suspend_dependency_refresh:
@@ -853,8 +1156,7 @@ class AthConfigStudio(tk.Tk):
         self.refresh_dependency_states()
 
     def _bind_dependency_traces(self) -> None:
-        dependency_keys = ("Throat.Profile", "GCurve.Type")
-        for key in dependency_keys:
+        for key in GUIDED_CONTROLLER_KEYS:
             data = self.horn_widgets.get(key)
             if not data:
                 continue
@@ -862,6 +1164,68 @@ class AthConfigStudio(tk.Tk):
             if isinstance(variable, tk.Variable):
                 token = variable.trace_add("write", self._on_dependency_field_changed)
                 self._dependency_trace_tokens.append((variable, token))
+
+        for key in BEM_GUIDED_CONTROLLER_KEYS:
+            data = self.bem_widgets.get(key)
+            if not data:
+                continue
+            variable = data.get("var")
+            if isinstance(variable, tk.Variable):
+                token = variable.trace_add("write", self._on_dependency_field_changed)
+                self._dependency_trace_tokens.append((variable, token))
+
+    def _on_quick_field_changed(self, *_args: object) -> None:
+        if self._suspend_quick_sync:
+            return
+        self._quick_dirty = True
+
+    def _bind_quick_traces(self) -> None:
+        for data in self.quick_widgets.values():
+            variable = data.get("var")
+            if isinstance(variable, tk.Variable):
+                token = variable.trace_add("write", self._on_quick_field_changed)
+                self._quick_trace_tokens.append((variable, token))
+
+    def sync_quick_to_horn(self) -> None:
+        if not self.quick_widgets:
+            return
+        self._suspend_dependency_refresh = True
+        try:
+            for key, quick_data in self.quick_widgets.items():
+                horn_data = self.horn_widgets.get(key)
+                if horn_data is None:
+                    continue
+                self._set_widget_value(horn_data, self._get_widget_value(quick_data))
+        finally:
+            self._suspend_dependency_refresh = False
+        self._quick_dirty = False
+        self.refresh_dependency_states()
+
+    def sync_horn_to_quick(self) -> None:
+        if not self.quick_widgets:
+            return
+        self._suspend_quick_sync = True
+        try:
+            for key, quick_data in self.quick_widgets.items():
+                horn_data = self.horn_widgets.get(key)
+                if horn_data is None:
+                    continue
+                self._set_widget_value(quick_data, self._get_widget_value(horn_data))
+        finally:
+            self._suspend_quick_sync = False
+        self._quick_dirty = False
+
+    def _on_controls_tab_changed(self, _event: tk.Event | None = None) -> None:
+        quick_tab = str(self.control_tabs.get("QuickStart", ""))
+        if not quick_tab:
+            return
+        current_tab = str(self.notebook.select())
+        previous_tab = str(self._active_controls_tab_id)
+        if current_tab == quick_tab:
+            self.sync_horn_to_quick()
+        elif previous_tab == quick_tab and self._quick_dirty:
+            self.sync_quick_to_horn()
+        self._active_controls_tab_id = current_tab
 
     def browse_for_field(self, key: str, mode: str) -> None:
         if mode == "dir":
@@ -874,11 +1238,13 @@ class AthConfigStudio(tk.Tk):
             target = self.global_widgets
         elif key in self.horn_widgets:
             target = self.horn_widgets
+        elif key in self.optimizer_widgets:
+            target = self.optimizer_widgets
         else:
             target = self.bem_widgets
         self._set_widget_value(target[key], chosen)
         self.status_var.set(f"已為 {key} 選擇路徑。")
-        if key not in self.bem_widgets:
+        if key not in self.bem_widgets and key not in self.optimizer_widgets:
             self.refresh_preview()
         self._update_runtime_status()
 
@@ -908,12 +1274,42 @@ class AthConfigStudio(tk.Tk):
         widget.insert("1.0", text)
         widget.configure(state="disabled")
 
+    def append_optimizer_log(self, line: str) -> None:
+        if self.optimizer_log_text is None:
+            return
+        widget = self.optimizer_log_text
+        widget.configure(state="normal")
+        if widget.index("end-1c") != "1.0":
+            widget.insert("end", "\n")
+        widget.insert("end", str(line))
+        widget.see("end")
+        widget.configure(state="disabled")
+
+    def clear_optimizer_log(self) -> None:
+        if self.optimizer_log_text is None:
+            return
+        self._set_text_widget(self.optimizer_log_text, "")
+
+    def set_optimizer_best_text(self, text: str) -> None:
+        if self.optimizer_best_text is None:
+            return
+        self._set_text_widget(self.optimizer_best_text, text)
+
+    def _reset_optimizer_views(self) -> None:
+        self.optimizer_status_var.set("Study idle.")
+        self.optimizer_trial_var.set("Trial: 0 / 0")
+        self.optimizer_best_score_var.set("Best score: (none)")
+        self.optimizer_study_dir_var.set("Study dir: (none)")
+        self.clear_optimizer_log()
+        self.append_optimizer_log("尚未開始最佳化。")
+        self.set_optimizer_best_text("尚未產生任何最佳 trial。")
+
     def _resolve_current_output_dir(self) -> Path | None:
         cfg_path = self.current_horn_path.get().strip()
         if not cfg_path:
             return None
         try:
-            return compute_output_directory(self.collect_global_state(), self.collect_horn_state(), Path(cfg_path))
+            return compute_output_directory(self.collect_global_state(), self.collect_effective_horn_state(), Path(cfg_path))
         except Exception:
             return None
 
@@ -945,8 +1341,23 @@ class AthConfigStudio(tk.Tk):
 
         mesh_file = ""
         if "BEM.MeshFile" in self.bem_widgets:
-            mesh_file = str(self.collect_bem_state().get("BEM.MeshFile", "")).strip()
-        self.mesh_status_var.set(mesh_file or "尚未指定")
+            effective_bem_state = self.collect_effective_bem_state()
+            if not bool(effective_bem_state.get("BEM.Enabled", False)):
+                self.mesh_status_var.set("BEM automation 關閉")
+            else:
+                mesh_source_mode = str(effective_bem_state.get("BEM.MeshSourceMode", "latest_ath_output")).strip().lower()
+                if mesh_source_mode == "manual_mesh_file":
+                    mesh_file = str(effective_bem_state.get("BEM.MeshFile", "")).strip()
+                else:
+                    guessed_mesh = guess_latest_mesh_file(
+                        self.collect_global_state(),
+                        self.collect_effective_horn_state(),
+                        self.current_horn_path.get(),
+                    )
+                    if guessed_mesh is None and self.last_generated_preview_file is not None and self.last_generated_preview_file.suffix.lower() == ".msh":
+                        guessed_mesh = self.last_generated_preview_file
+                    mesh_file = str(guessed_mesh) if guessed_mesh is not None else ""
+                self.mesh_status_var.set(mesh_file or "尚未指定")
         self._refresh_status_card_summary()
 
     def _format_group_summary(self, detected_groups: list[int], *, group_source: str, count_map: dict[str, int]) -> str:
@@ -968,9 +1379,6 @@ class AthConfigStudio(tk.Tk):
             self.group_status_var.set("分群狀態：目前預覽檔沒有可視群組")
         self.preview_group_var.set(self._format_group_summary(detected_groups, group_source=group_source, count_map=edge_counts))
 
-        mesh_candidates = self._candidate_mesh_files_for_preview(preview_file)
-        if mesh_candidates and ("BEM.MeshFile" in self.bem_widgets):
-            self._set_widget_value(self.bem_widgets["BEM.MeshFile"], str(mesh_candidates[0]))
         self._update_runtime_status()
 
     def collect_global_state(self) -> dict[str, object]:
@@ -990,11 +1398,40 @@ class AthConfigStudio(tk.Tk):
             return normalize_branch_locked_horn_state(state)
         return state
 
+    def collect_effective_horn_state(self) -> dict[str, object]:
+        return sanitize_ath_state(self.collect_horn_state())
+
     def collect_bem_state(self) -> dict[str, object]:
         state = default_bem_state()
         for key, data in self.bem_widgets.items():
             state[key] = self._get_widget_value(data)
         return state
+
+    def collect_optimizer_state(self) -> dict[str, object]:
+        state = default_optimizer_state()
+        for key, data in self.optimizer_widgets.items():
+            state[key] = self._get_widget_value(data)
+        return state
+
+    def collect_effective_bem_state(self, ath_state: dict[str, object] | None = None) -> dict[str, object]:
+        effective_ath_state = dict(ath_state) if ath_state is not None else self.collect_effective_horn_state()
+        return sanitize_bem_state(self.collect_bem_state(), effective_ath_state)
+
+    def collect_effective_run_payload(self) -> dict[str, object]:
+        if self._quick_dirty:
+            self.sync_quick_to_horn()
+        ath_cfg_state = self.collect_effective_horn_state()
+        bem_state = self.collect_effective_bem_state(ath_cfg_state)
+        bem_runtime = build_bem_runtime_settings(bem_state, ath_cfg_state)
+        ath_run_state = dict(ath_cfg_state)
+        if bool(bem_runtime.get("requires_ath_mesh_output", False)):
+            ath_run_state["Output.MSH"] = True
+        return {
+            "ath_cfg_state": ath_cfg_state,
+            "ath_run_state": ath_run_state,
+            "bem_state": bem_state,
+            "bem_runtime": bem_runtime,
+        }
 
     def apply_global_state(self, state: dict[str, object]) -> None:
         for key, data in self.global_widgets.items():
@@ -1008,11 +1445,17 @@ class AthConfigStudio(tk.Tk):
         finally:
             self._suspend_dependency_refresh = False
         self.refresh_dependency_states()
+        self.sync_horn_to_quick()
         self.refresh_preview()
 
     def apply_bem_state(self, state: dict[str, object]) -> None:
-        for key, data in self.bem_widgets.items():
-            self._set_widget_value(data, state.get(key, data["spec"].default))
+        self._suspend_dependency_refresh = True
+        try:
+            for key, data in self.bem_widgets.items():
+                self._set_widget_value(data, state.get(key, data["spec"].default))
+        finally:
+            self._suspend_dependency_refresh = False
+        self.refresh_dependency_states()
 
     def load_global_config(self, startup: bool = False) -> None:
         if not ATH_GLOBAL_CONFIG.exists():
@@ -1047,6 +1490,8 @@ class AthConfigStudio(tk.Tk):
         self.current_horn_path.set("")
         self.apply_horn_state(default_horn_state())
         self.apply_bem_state(default_bem_state())
+        self._reset_optimizer_views()
+        self.stop_bem_progress()
         self.bem_status_var.set("閒置")
         self.bem_result_path_var.set("尚未執行任何 BEM 工作。")
         self._set_text_widget(self.bem_mesh_text, "請先執行 ATH 並啟用 `Output.MSH = 1`，或手動指定既有 `.msh` 檔。")
@@ -1070,7 +1515,8 @@ class AthConfigStudio(tk.Tk):
             return
         self.apply_horn_state(load_horn_state(read_text_file(Path(path))))
         self.current_horn_path.set(path)
-        self.autofill_bem_mesh(set_status=False)
+        self._reset_optimizer_views()
+        self.resolve_bem_mesh_path(set_status=False)
         self.status_var.set(f"已載入號角設定：{path}")
         self._update_runtime_status()
 
@@ -1092,7 +1538,9 @@ class AthConfigStudio(tk.Tk):
         return self._save_horn_to_path(Path(path))
 
     def _save_horn_to_path(self, path: Path) -> bool:
-        state = self.collect_horn_state(normalize_locked=True)
+        if self._quick_dirty:
+            self.sync_quick_to_horn()
+        state = self.collect_effective_horn_state()
         if not str(state.get("Length", "")).strip():
             messagebox.showerror(APP_TITLE, "ATH 號角定義必須填寫 Length。")
             return False
@@ -1100,12 +1548,14 @@ class AthConfigStudio(tk.Tk):
         self.current_horn_path.set(str(path))
         self.status_var.set(f"已儲存號角設定：{path}")
         self.refresh_preview()
-        self.autofill_bem_mesh(set_status=False)
+        self.resolve_bem_mesh_path(set_status=False)
         self._update_runtime_status()
         return True
 
     def refresh_preview(self) -> None:
-        preview = render_horn_text(self.collect_horn_state(normalize_locked=True))
+        if self._quick_dirty:
+            self.sync_quick_to_horn()
+        preview = render_horn_text(self.collect_effective_horn_state())
         self.preview_text.configure(state="normal")
         self.preview_text.delete("1.0", "end")
         self.preview_text.insert("1.0", preview)
@@ -1271,6 +1721,8 @@ class AthConfigStudio(tk.Tk):
         self._update_runtime_status()
 
     def run_all_from_current_mode(self) -> None:
+        if self._quick_dirty:
+            self.sync_quick_to_horn()
         self.run_all_controller.run_all_from_ui()
 
     def save_design_recipe(self) -> None:
@@ -1285,6 +1737,18 @@ class AthConfigStudio(tk.Tk):
     def load_workspace_results(self) -> None:
         self.run_all_controller.reload_latest_workspace_results()
 
+    def run_optimizer_study(self) -> None:
+        self.optimization_controller.start_from_ui()
+
+    def stop_optimizer_study(self) -> None:
+        self.optimization_controller.request_stop_after_trial()
+
+    def open_optimizer_study_dir(self) -> None:
+        self.optimization_controller.open_study_dir()
+
+    def apply_best_optimizer_trial(self) -> None:
+        self.optimization_controller.apply_best_trial()
+
     def open_current_preview_external(self) -> None:
         if self.last_generated_preview_file is None:
             messagebox.showinfo(APP_TITLE, "目前尚未載入任何已生成的預覽檔。")
@@ -1295,17 +1759,38 @@ class AthConfigStudio(tk.Tk):
         else:
             messagebox.showerror(APP_TITLE, f"無法以外部程式開啟預覽檔：\n{self.last_generated_preview_file}")
 
+    def resolve_bem_mesh_path(self, bem_state: dict[str, object] | None = None, *, set_status: bool = True) -> Path | None:
+        effective_bem_state = dict(bem_state) if bem_state is not None else self.collect_effective_bem_state()
+        mesh_source_mode = str(effective_bem_state.get("BEM.MeshSourceMode", "latest_ath_output")).strip().lower() or "latest_ath_output"
+        if mesh_source_mode == "manual_mesh_file":
+            mesh_path_text = str(effective_bem_state.get("BEM.MeshFile", "")).strip()
+            if not mesh_path_text:
+                if set_status:
+                    self.status_var.set("BEM 目前使用手動網格模式，但尚未指定 `.msh` 檔。")
+                    self.mesh_status_var.set("尚未指定")
+                    self._update_runtime_status()
+                return None
+            mesh_path = Path(mesh_path_text)
+            if set_status:
+                self.mesh_status_var.set(str(mesh_path))
+                self._update_runtime_status()
+            return mesh_path
+        return self.autofill_bem_mesh(set_status=set_status)
+
     def autofill_bem_mesh(self, set_status: bool = True) -> Path | None:
+        effective_bem_state = self.collect_effective_bem_state()
+        mesh_source_mode = str(effective_bem_state.get("BEM.MeshSourceMode", "latest_ath_output")).strip().lower()
         mesh_file = guess_latest_mesh_file(
             self.collect_global_state(),
-            self.collect_horn_state(),
+            self.collect_effective_horn_state(),
             self.current_horn_path.get(),
         )
         if mesh_file is None and self.last_generated_preview_file is not None and self.last_generated_preview_file.suffix.lower() == ".msh":
             mesh_file = self.last_generated_preview_file
 
         if mesh_file is not None:
-            self._set_widget_value(self.bem_widgets["BEM.MeshFile"], str(mesh_file))
+            if mesh_source_mode == "manual_mesh_file":
+                self._set_widget_value(self.bem_widgets["BEM.MeshFile"], str(mesh_file))
             if set_status:
                 self.status_var.set(f"目前使用 BEM 網格：{mesh_file}")
             self.mesh_status_var.set(str(mesh_file))
@@ -1348,9 +1833,19 @@ class AthConfigStudio(tk.Tk):
         self.workflow_controller.run_bempp()
 
     def run_ath(self) -> None:
+        if self._quick_dirty:
+            self.sync_quick_to_horn()
         self.workflow_controller.run_ath()
 
     def destroy(self) -> None:  # type: ignore[override]
+        if self._bem_progress_after_id is not None:
+            self.after_cancel(self._bem_progress_after_id)
+            self._bem_progress_after_id = None
+        if hasattr(self, "optimization_controller") and self.optimization_controller is not None:
+            try:
+                self.optimization_controller.shutdown()
+            except Exception:
+                pass
         if self.opengl_preview is not None:
             self.opengl_preview.shutdown()
         super().destroy()

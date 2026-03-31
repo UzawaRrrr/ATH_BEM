@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
-from ..domain.bem_specs import BEM_FIELD_SECTIONS
+from ..domain.bem_specs import (
+    BEM_FIELD_SECTIONS,
+    BEM_GUIDED_BASE_GROUPS,
+    BEM_GUIDED_FIELD_GROUPS,
+    BEM_GUIDED_RULES,
+    BEM_SANITIZE_RESET_VALUES,
+)
+from .group_mapper import mesh_family_key, suggest_group_map
 
 
 BEM_FIELD_SPECS = {
@@ -27,6 +35,143 @@ def normalize_bem_state(state: dict[str, object] | None = None) -> dict[str, obj
         if key in normalized:
             normalized[key] = value
     return normalized
+
+
+def _state_truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _guided_group_keys(group_names: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    keys: list[str] = []
+    for group_name in group_names:
+        keys.extend(BEM_GUIDED_FIELD_GROUPS.get(group_name, ()))
+    return tuple(dict.fromkeys(keys))
+
+
+def _apply_guided_rule_case(
+    field_states: dict[str, dict[str, object]],
+    rule_cases: dict[str, dict[str, object]],
+    case_key: str,
+) -> None:
+    case = rule_cases.get(case_key, rule_cases.get("__default__", {}))
+    relevant_groups = tuple(case.get("relevant_groups", ()))
+    inactive_groups = dict(case.get("inactive_groups", {}))
+
+    for key in _guided_group_keys(relevant_groups):
+        state = field_states.setdefault(key, {"relevant": True, "reason": ""})
+        state["relevant"] = True
+        state["reason"] = ""
+
+    for group_name, reason in inactive_groups.items():
+        for key in _guided_group_keys([group_name]):
+            state = field_states.setdefault(key, {"relevant": True, "reason": ""})
+            state["relevant"] = False
+            state["reason"] = str(reason).strip()
+
+
+def build_bem_guided_field_states(state: dict[str, object] | None = None, ath_state: dict[str, object] | None = None) -> dict[str, dict[str, object]]:
+    current = normalize_bem_state(state)
+    field_states = {
+        key: {"relevant": False, "reason": ""}
+        for key in BEM_FIELD_SPECS
+    }
+    for key in _guided_group_keys(BEM_GUIDED_BASE_GROUPS):
+        field_states[key] = {"relevant": True, "reason": ""}
+
+    enabled_key = "1" if _state_truthy(current.get("BEM.Enabled", False)) else "__default__"
+    _apply_guided_rule_case(field_states, BEM_GUIDED_RULES["BEM.Enabled"], enabled_key)
+    if enabled_key != "1":
+        return field_states
+
+    backend = str(current.get("BEM.Backend", "wsl")).strip().lower() or "wsl"
+    _apply_guided_rule_case(field_states, BEM_GUIDED_RULES["BEM.Backend"], backend)
+
+    mesh_source_mode = str(current.get("BEM.MeshSourceMode", "latest_ath_output")).strip().lower() or "latest_ath_output"
+    _apply_guided_rule_case(field_states, BEM_GUIDED_RULES["BEM.MeshSourceMode"], mesh_source_mode)
+
+    group_mode = str(current.get("BEM.GroupMode", "auto")).strip().lower() or "auto"
+    _apply_guided_rule_case(field_states, BEM_GUIDED_RULES["BEM.GroupMode"], group_mode)
+
+    solver_mode = str(current.get("BEM.SolverMode", "exterior_velocity_bc")).strip().lower() or "exterior_velocity_bc"
+    _apply_guided_rule_case(field_states, BEM_GUIDED_RULES["BEM.SolverMode"], solver_mode)
+
+    observation_mode = str(current.get("BEM.ObservationMode", "polar_map")).strip().lower() or "polar_map"
+    _apply_guided_rule_case(field_states, BEM_GUIDED_RULES["BEM.ObservationMode"], observation_mode)
+
+    sim_type = str((ath_state or {}).get("ABEC.SimType", "")).strip()
+    if sim_type and sim_type != "2" and group_mode == "auto":
+        state = field_states.setdefault("BEM.AutoGroupStrategy", {"relevant": True, "reason": ""})
+        state["reason"] = "Infinite-baffle mode falls back to name-based auto mapping."
+
+    return field_states
+
+
+def sanitize_bem_state(state: dict[str, object] | None, ath_state: dict[str, object] | None = None) -> dict[str, object]:
+    sanitized = normalize_bem_state(state)
+    rules = build_bem_guided_field_states(sanitized, ath_state)
+    for key, field_state in rules.items():
+        if bool(field_state.get("relevant", True)):
+            continue
+        if key in BEM_SANITIZE_RESET_VALUES:
+            sanitized[key] = BEM_SANITIZE_RESET_VALUES[key]
+            continue
+        spec = BEM_FIELD_SPECS.get(key)
+        if spec is not None and spec.kind == "check":
+            sanitized[key] = False
+        else:
+            sanitized[key] = ""
+
+    backend = str(sanitized.get("BEM.Backend", "wsl")).strip().lower() or "wsl"
+    sanitized["BEM.Backend"] = backend if backend in {"wsl", "local_python", "conda"} else "wsl"
+
+    mesh_source_mode = str(sanitized.get("BEM.MeshSourceMode", "latest_ath_output")).strip().lower() or "latest_ath_output"
+    sanitized["BEM.MeshSourceMode"] = (
+        mesh_source_mode if mesh_source_mode in {"latest_ath_output", "manual_mesh_file"} else "latest_ath_output"
+    )
+
+    group_mode = str(sanitized.get("BEM.GroupMode", "auto")).strip().lower() or "auto"
+    sanitized["BEM.GroupMode"] = group_mode if group_mode in {"auto", "manual"} else "auto"
+
+    solver_mode = str(sanitized.get("BEM.SolverMode", "exterior_velocity_bc")).strip().lower() or "exterior_velocity_bc"
+    sanitized["BEM.SolverMode"] = solver_mode if solver_mode in {"exterior_velocity_bc"} else "exterior_velocity_bc"
+
+    observation_mode = str(sanitized.get("BEM.ObservationMode", "polar_map")).strip().lower() or "polar_map"
+    sanitized["BEM.ObservationMode"] = (
+        observation_mode if observation_mode in {"polar_map", "custom_directivity"} else "polar_map"
+    )
+
+    sim_type = str((ath_state or {}).get("ABEC.SimType", "")).strip()
+    if group_mode == "auto" and sim_type and sim_type != "2" and str(sanitized.get("BEM.AutoGroupStrategy", "")).strip() == "fixed_current":
+        sanitized["BEM.AutoGroupStrategy"] = "name_heuristic"
+
+    if not _state_truthy(sanitized.get("BEM.Enabled", False)):
+        sanitized["BEM.Enabled"] = False
+
+    return sanitized
+
+
+def build_bem_runtime_settings(state: dict[str, object] | None, ath_state: dict[str, object] | None = None) -> dict[str, object]:
+    sanitized = sanitize_bem_state(state, ath_state)
+    backend = str(sanitized.get("BEM.Backend", "wsl")).strip().lower() or "wsl"
+    mesh_source_mode = str(sanitized.get("BEM.MeshSourceMode", "latest_ath_output")).strip().lower() or "latest_ath_output"
+    group_mode = str(sanitized.get("BEM.GroupMode", "auto")).strip().lower() or "auto"
+    return {
+        "enabled": bool(sanitized.get("BEM.Enabled", False)),
+        "backend": backend,
+        "mesh_source_mode": mesh_source_mode,
+        "group_mode": group_mode,
+        "requires_ath_mesh_output": bool(sanitized.get("BEM.Enabled", False)) and mesh_source_mode == "latest_ath_output",
+        "launch_options": {
+            "backend": backend,
+            "wsl_venv": str(sanitized.get("BEM.WslVenv", "")).strip() or "~/venvs/bempp-wsl",
+            "wsl_solver_entry": str(sanitized.get("BEM.WslSolverEntry", "")).strip() or "~/bem_solver/solver_cli.py",
+            "local_python_exe": str(sanitized.get("BEM.LocalPythonExe", "")).strip() or sys.executable,
+            "conda_exe": str(sanitized.get("BEM.CondaExe", "")).strip() or "conda",
+            "conda_env": str(sanitized.get("BEM.CondaEnv", "")).strip() or "bempp",
+        },
+    }
 
 
 def _split_numeric_tokens(text: str) -> list[str]:
@@ -88,6 +233,87 @@ def _broadcast_vectors(values: list[list[float]], target_count: int, label: str)
     if len(values) != target_count:
         raise ValueError(f"{label} must contain either 1 vector or exactly {target_count} vectors.")
     return values
+
+
+_FIXED_SOURCE_GROUPS = [2]
+_FIXED_WALL_GROUPS = [1, 3]
+_FIXED_IGNORE_GROUPS = [4]
+_FIXED_INTERFACE_GROUPS: list[int] = []
+
+
+def resolve_group_map_payload(
+    state: dict[str, object] | None,
+    mesh_info: dict[str, object],
+    ath_state: dict[str, object] | None = None,
+) -> dict[str, object]:
+    merged = sanitize_bem_state(state, ath_state)
+    group_mode = str(merged.get("BEM.GroupMode", "auto")).strip().lower() or "auto"
+    detected_groups = {int(value) for value in mesh_info.get("detected_groups", [])}
+
+    if group_mode == "manual":
+        source_groups = parse_int_list(merged.get("BEM.SourceGroups", ""))
+        wall_groups = parse_int_list(merged.get("BEM.WallGroups", ""))
+        interface_groups = parse_int_list(merged.get("BEM.InterfaceGroups", ""))
+        ignore_groups = parse_int_list(merged.get("BEM.IgnoreGroups", ""))
+        if not source_groups:
+            raise ValueError("Manual group mode requires at least one source group.")
+        missing_groups = sorted(
+            group_id
+            for group_id in source_groups + wall_groups + interface_groups + ignore_groups
+            if group_id not in detected_groups
+        )
+        if missing_groups:
+            raise ValueError(f"Mesh does not contain the configured group IDs: {missing_groups}")
+        return {
+            "schema": "ath.group_map.v1",
+            "mesh_family": mesh_family_key(mesh_info),
+            "source_groups": source_groups,
+            "wall_groups": wall_groups,
+            "interface_groups": interface_groups,
+            "ignore_groups": ignore_groups,
+            "confidence": "manual",
+            "requires_confirmation": False,
+            "reasons": ["Manual group mapping from current BEM state."],
+        }
+
+    strategy = str(merged.get("BEM.AutoGroupStrategy", "fixed_current")).strip().lower() or "fixed_current"
+    sim_type = str((ath_state or {}).get("ABEC.SimType", "")).strip()
+    if strategy == "fixed_current" and sim_type and sim_type != "2":
+        strategy = "name_heuristic"
+
+    if strategy == "fixed_current":
+        required_groups = set(_FIXED_SOURCE_GROUPS + _FIXED_WALL_GROUPS)
+        missing_required = sorted(group_id for group_id in required_groups if group_id not in detected_groups)
+        if missing_required:
+            raise ValueError(
+                "Fixed auto mapping requires groups "
+                f"{sorted(required_groups)}, but mesh only contains {sorted(detected_groups)}."
+            )
+        return {
+            "schema": "ath.group_map.v1",
+            "mesh_family": mesh_family_key(mesh_info),
+            "source_groups": list(_FIXED_SOURCE_GROUPS),
+            "wall_groups": list(_FIXED_WALL_GROUPS),
+            "interface_groups": list(_FIXED_INTERFACE_GROUPS),
+            "ignore_groups": [group_id for group_id in _FIXED_IGNORE_GROUPS if group_id in detected_groups],
+            "confidence": "manual_fixed",
+            "requires_confirmation": False,
+            "reasons": ["Fixed mapping by current branch rule: source=2, wall=1,3, ignore=4."],
+        }
+
+    suggestion = suggest_group_map(mesh_info)
+    payload = suggestion.to_dict()
+    payload["reasons"] = list(payload.get("reasons", [])) + ["Auto strategy: name_heuristic"]
+    return payload
+
+
+def apply_group_map_to_bem_state(state: dict[str, object] | None, group_map_payload: dict[str, object]) -> dict[str, object]:
+    merged = normalize_bem_state(state)
+    merged["BEM.SourceGroups"] = ",".join(str(value) for value in group_map_payload.get("source_groups", []))
+    merged["BEM.WallGroups"] = ",".join(str(value) for value in group_map_payload.get("wall_groups", []))
+    merged["BEM.InterfaceGroups"] = ",".join(str(value) for value in group_map_payload.get("interface_groups", []))
+    merged["BEM.IgnoreGroups"] = ",".join(str(value) for value in group_map_payload.get("ignore_groups", []))
+    return merged
 
 
 def build_job_payload(state: dict[str, object], mesh_file: Path, mesh_file_wsl: str) -> dict[str, object]:

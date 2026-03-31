@@ -8,6 +8,11 @@ from .specs import (
     ENCLOSURE_FIELDS,
     GEOMETRY_FIELDS,
     GLOBAL_FIELDS,
+    GUIDED_BASE_GROUPS,
+    GUIDED_FIELD_GROUPS,
+    GUIDED_MANAGED_KEYS,
+    GUIDED_RULES,
+    GUIDED_SANITIZE_RESET_VALUES,
     GRID_EXPORT_FIELDS,
     GUIDING_CURVE_FIELDS,
     HORN_SAMPLE_VALUES,
@@ -159,40 +164,112 @@ def default_horn_state() -> dict[str, object]:
     return state
 
 
+def _guided_group_keys(group_names: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    keys: list[str] = []
+    for group_name in group_names:
+        keys.extend(GUIDED_FIELD_GROUPS.get(group_name, ()))
+    return tuple(dict.fromkeys(keys))
+
+
+def _state_truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return is_truthy(str(value))
+
+
+def _apply_guided_rule_case(
+    field_states: dict[str, dict[str, object]],
+    rule_cases: dict[str, dict[str, object]],
+    case_key: str,
+) -> None:
+    case = rule_cases.get(case_key, rule_cases.get("__default__", {}))
+    relevant_groups = tuple(case.get("relevant_groups", ()))
+    inactive_groups = dict(case.get("inactive_groups", {}))
+
+    for key in _guided_group_keys(relevant_groups):
+        state = field_states.setdefault(key, {"relevant": True, "reason": ""})
+        state["relevant"] = True
+        state["reason"] = ""
+
+    for group_name, reason in inactive_groups.items():
+        for key in _guided_group_keys([group_name]):
+            state = field_states.setdefault(key, {"relevant": True, "reason": ""})
+            state["relevant"] = False
+            state["reason"] = str(reason).strip()
+
+
+def build_guided_field_states(state: dict[str, object] | None = None) -> dict[str, dict[str, object]]:
+    """Evaluate which horn fields are currently relevant under Guided Setup rules."""
+
+    current = default_horn_state()
+    if state:
+        current.update(state)
+
+    field_states = {
+        key: {"relevant": False, "reason": ""}
+        for key in GUIDED_MANAGED_KEYS
+    }
+    for key in _guided_group_keys(GUIDED_BASE_GROUPS):
+        field_states[key] = {"relevant": True, "reason": ""}
+
+    throat_profile = str(current.get("Throat.Profile", "")).strip()
+    _apply_guided_rule_case(field_states, GUIDED_RULES["Throat.Profile"], throat_profile)
+
+    if throat_profile == "1":
+        gcurve_type = str(current.get("GCurve.Type", "")).strip()
+        _apply_guided_rule_case(field_states, GUIDED_RULES["GCurve.Type"], gcurve_type)
+    else:
+        _apply_guided_rule_case(field_states, GUIDED_RULES["GCurve.Type"], "__inactive__")
+
+    morph_target_shape = str(current.get("Morph.TargetShape", "")).strip()
+    _apply_guided_rule_case(field_states, GUIDED_RULES["Morph.TargetShape"], morph_target_shape)
+
+    sim_type = str(current.get("ABEC.SimType", "")).strip()
+    _apply_guided_rule_case(field_states, GUIDED_RULES["ABEC.SimType"], sim_type)
+
+    if sim_type == "2":
+        rollback_case = "1" if _state_truthy(current.get("Rollback", False)) else "__default__"
+        _apply_guided_rule_case(field_states, GUIDED_RULES["Rollback"], rollback_case)
+    else:
+        _apply_guided_rule_case(field_states, GUIDED_RULES["Rollback"], "__inactive__")
+
+    return field_states
+
+
+def sanitize_state_by_rules(state: dict[str, object]) -> dict[str, object]:
+    """Keep raw UI state intact, but neutralize irrelevant branches for save/run/render."""
+
+    sanitized = default_horn_state()
+    sanitized.update(state)
+
+    for key, field_state in build_guided_field_states(sanitized).items():
+        if bool(field_state.get("relevant", True)):
+            continue
+        if key in GUIDED_SANITIZE_RESET_VALUES:
+            sanitized[key] = GUIDED_SANITIZE_RESET_VALUES[key]
+            continue
+        spec = SIMPLE_FIELD_SPECS.get(key)
+        if spec is not None and spec.kind == "check":
+            sanitized[key] = False
+        else:
+            sanitized[key] = ""
+
+    return sanitized
+
+
+def sanitize_ath_state(state: dict[str, object]) -> dict[str, object]:
+    """Explicit ATH-side sanitize entry point used before save/preview/run."""
+
+    return sanitize_state_by_rules(state)
+
+
 def normalize_branch_locked_horn_state(state: dict[str, object]) -> dict[str, object]:
     """Drop or neutralize values that belong to inactive parameter branches.
 
     This mirrors GUI dependency locking semantics so disabled branches do not
     accidentally leak stale values into rendered cfg output.
     """
-
-    normalized = dict(state)
-
-    def _clear(keys: tuple[str, ...]) -> None:
-        for key in keys:
-            normalized[key] = ""
-
-    throat_profile = str(normalized.get("Throat.Profile", "")).strip()
-    gcurve_type = str(normalized.get("GCurve.Type", "")).strip()
-
-    # Match current UI locking behavior: only enforce GCurve branch rules for
-    # OS-SE profile (`Throat.Profile = 1`).
-    if throat_profile == "1":
-        if gcurve_type == "":
-            _clear(("GCurve.Dist", "GCurve.Width", "GCurve.AspectRatio", "GCurve.SE.n", "GCurve.SF", "GCurve.Rot"))
-        elif gcurve_type == "1":
-            _clear(("GCurve.SF",))
-        elif gcurve_type == "2":
-            _clear(("GCurve.SE.n",))
-
-    # Keep shape branch deterministic: when "keep original shape", force
-    # target dimensions back to neutral values.
-    morph_target_shape = str(normalized.get("Morph.TargetShape", "")).strip()
-    if morph_target_shape in {"", "0"}:
-        normalized["Morph.TargetWidth"] = "0"
-        normalized["Morph.TargetHeight"] = "0"
-
-    return normalized
+    return sanitize_ath_state(state)
 
 
 def read_text_file(path: Path) -> str:

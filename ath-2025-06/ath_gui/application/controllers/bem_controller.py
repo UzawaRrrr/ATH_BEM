@@ -21,9 +21,9 @@ class BemController:
         self.app = app
 
     def inspect_bem_mesh(self) -> None:
-        state = self.app.collect_bem_state()
-        mesh_path_text = str(state.get("BEM.MeshFile", "")).strip()
-        mesh_path = Path(mesh_path_text) if mesh_path_text else self.app.autofill_bem_mesh(set_status=False)
+        ath_state = self.app.collect_effective_horn_state()
+        state = self.app.collect_effective_bem_state(ath_state)
+        mesh_path = self.app.resolve_bem_mesh_path(state, set_status=False)
         if mesh_path is None or not Path(mesh_path).exists():
             messagebox.showerror(
                 APP_TITLE,
@@ -66,7 +66,7 @@ class BemController:
         cfg_path = self.app.current_horn_path.get().strip()
         if not cfg_path:
             return self.app.bem_last_result_dir
-        output_dir = compute_output_directory(self.app.collect_global_state(), self.app.collect_horn_state(), Path(cfg_path))
+        output_dir = compute_output_directory(self.app.collect_global_state(), self.app.collect_effective_horn_state(), Path(cfg_path))
         return default_bem_result_dir(output_dir)
 
     def refresh_bem_plot(self) -> None:
@@ -109,6 +109,8 @@ class BemController:
         else:
             self.app._set_text_widget(self.app.bem_mesh_text, "這次 BEM 執行沒有找到 mesh_info.json。")
         self.app.bem_status_var.set(describe_bem_status(results["summary"].get("status", "done")))
+        if str(results["summary"].get("status", "done")).strip().lower() == "done":
+            self.app.stop_bem_progress("BEM 已完成")
         self.app.bem_result_path_var.set(str(target_dir))
         self.refresh_bem_plot()
         self.app.status_var.set(f"已載入 BEM 結果：{target_dir}")

@@ -5,6 +5,61 @@ from __future__ import annotations
 from .specs import FieldSpec
 
 
+BEM_AUTOMATION_FIELDS = (
+    FieldSpec("BEM.Enabled", "啟用 BEM 自動流程", kind="check", default=True, emit_default=True),
+    FieldSpec(
+        "BEM.Backend",
+        "BEM 執行後端",
+        kind="combo",
+        default="wsl",
+        choices=("wsl", "local_python", "conda"),
+        hint="wsl = 透過 WSL 啟動；local_python = 本機 Python；conda = conda run -n <env>。",
+    ),
+    FieldSpec(
+        "BEM.MeshSourceMode",
+        "網格來源模式",
+        kind="combo",
+        default="latest_ath_output",
+        choices=("latest_ath_output", "manual_mesh_file"),
+        hint="latest_ath_output 會優先使用最新 ATH 輸出；manual_mesh_file 則使用指定 .msh。",
+    ),
+    FieldSpec(
+        "BEM.GroupMode",
+        "群組指定模式",
+        kind="combo",
+        default="auto",
+        choices=("auto", "manual"),
+    ),
+    FieldSpec(
+        "BEM.AutoGroupStrategy",
+        "自動分群策略",
+        kind="combo",
+        default="fixed_current",
+        choices=("fixed_current", "name_heuristic"),
+        hint="fixed_current = 使用目前 branch 的固定 mapping；name_heuristic = 依名稱/群組特徵猜測。",
+    ),
+    FieldSpec(
+        "BEM.SolverMode",
+        "求解器模式",
+        kind="combo",
+        default="exterior_velocity_bc",
+        choices=("exterior_velocity_bc",),
+    ),
+    FieldSpec(
+        "BEM.ObservationMode",
+        "觀測模式",
+        kind="combo",
+        default="polar_map",
+        choices=("polar_map", "custom_directivity"),
+        hint="目前 solver 仍使用同一套觀測欄位；此欄位主要控制 Guided Setup 顯示與輸出偏好。",
+    ),
+    FieldSpec("BEM.WslVenv", "WSL Python venv", default="~/venvs/bempp-wsl", width=52),
+    FieldSpec("BEM.WslSolverEntry", "WSL solver 入口", default="~/bem_solver/solver_cli.py", width=52),
+    FieldSpec("BEM.LocalPythonExe", "本機 Python", browse="file", width=52),
+    FieldSpec("BEM.CondaExe", "Conda 執行檔", default="conda", browse="file", width=52),
+    FieldSpec("BEM.CondaEnv", "Conda 環境名稱", default="bempp", width=32),
+)
+
 BEM_MESH_FIELDS = (
     FieldSpec(
         "BEM.MeshFile",
@@ -25,13 +80,6 @@ BEM_MESH_FIELDS = (
 )
 
 BEM_SOLVER_FIELDS = (
-    FieldSpec(
-        "BEM.SolverMode",
-        "求解器模式",
-        kind="combo",
-        default="exterior_velocity_bc",
-        choices=("exterior_velocity_bc",),
-    ),
     FieldSpec(
         "BEM.SourceGain",
         "聲源增益",
@@ -113,8 +161,212 @@ BEM_OBSERVATION_FIELDS = (
 )
 
 BEM_FIELD_SECTIONS = (
+    ("BEM automation / backend 設定。", BEM_AUTOMATION_FIELDS),
     ("ATH BEM 網格匯入與群組選取。", BEM_MESH_FIELDS),
     ("外部 Helmholtz 求解器控制。", BEM_SOLVER_FIELDS),
     ("對稱降階設定（1/2 / 1/4）。", BEM_SYMMETRY_FIELDS),
     ("遠場指向性觀測設定。", BEM_OBSERVATION_FIELDS),
+)
+
+BEM_GUIDED_CONTROLLER_KEYS = (
+    "BEM.Enabled",
+    "BEM.Backend",
+    "BEM.MeshSourceMode",
+    "BEM.GroupMode",
+    "BEM.SolverMode",
+    "BEM.ObservationMode",
+)
+
+BEM_GUIDED_ALWAYS_VISIBLE_KEYS = ("BEM.Enabled",)
+
+BEM_GUIDED_FIELD_GROUPS: dict[str, tuple[str, ...]] = {
+    "BEM_GUIDED_ENABLE": ("BEM.Enabled",),
+    "BEM_GUIDED_CONTROLLERS": ("BEM.Backend", "BEM.MeshSourceMode", "BEM.GroupMode", "BEM.SolverMode", "BEM.ObservationMode"),
+    "BEM_GUIDED_BACKEND_WSL": ("BEM.WslVenv", "BEM.WslSolverEntry"),
+    "BEM_GUIDED_BACKEND_LOCAL": ("BEM.LocalPythonExe",),
+    "BEM_GUIDED_BACKEND_CONDA": ("BEM.CondaExe", "BEM.CondaEnv"),
+    "BEM_GUIDED_MESH_MANUAL": ("BEM.MeshFile",),
+    "BEM_GUIDED_MESH_COMMON": ("BEM.MeshScaleToMeter",),
+    "BEM_GUIDED_GROUP_AUTO": ("BEM.AutoGroupStrategy",),
+    "BEM_GUIDED_GROUP_MANUAL": ("BEM.SourceGroups", "BEM.WallGroups", "BEM.InterfaceGroups", "BEM.IgnoreGroups"),
+    "BEM_GUIDED_SOLVER_COMMON": (
+        "BEM.SourceGain",
+        "BEM.SourceDirection",
+        "BEM.VelocityModel",
+        "BEM.VelocityFrequencyWeighting",
+        "BEM.F1",
+        "BEM.F2",
+        "BEM.NumFreq",
+        "BEM.FrequencySpacing",
+        "BEM.Rho0",
+        "BEM.C0",
+    ),
+    "BEM_GUIDED_SYMMETRY": (
+        "BEM.SymmetryMode",
+        "BEM.SymmetryXValue",
+        "BEM.SymmetryYValue",
+        "BEM.SymmetryTolerance",
+        "BEM.SymmetryStrict",
+        "BEM.SymmetryDebugFull",
+    ),
+    "BEM_GUIDED_OBSERVATION_COMMON": (
+        "BEM.MicDistance",
+        "BEM.Plane",
+        "BEM.AngleRangeMode",
+        "BEM.ThetaCount",
+        "BEM.ReferencePressure",
+    ),
+    "BEM_GUIDED_OBSERVATION_POLAR": ("BEM.ExportPng",),
+    "BEM_GUIDED_OBSERVATION_CUSTOM": ("BEM.ExportBoundaryPressure",),
+}
+
+BEM_GUIDED_BASE_GROUPS = (
+    "BEM_GUIDED_ENABLE",
+)
+
+BEM_GUIDED_RULES: dict[str, dict[str, dict[str, object]]] = {
+    "BEM.Enabled": {
+        "__default__": {
+            "inactive_groups": {
+                "BEM_GUIDED_CONTROLLERS": "BEM automation is disabled.",
+                "BEM_GUIDED_BACKEND_WSL": "BEM automation is disabled.",
+                "BEM_GUIDED_BACKEND_LOCAL": "BEM automation is disabled.",
+                "BEM_GUIDED_BACKEND_CONDA": "BEM automation is disabled.",
+                "BEM_GUIDED_MESH_MANUAL": "BEM automation is disabled.",
+                "BEM_GUIDED_MESH_COMMON": "BEM automation is disabled.",
+                "BEM_GUIDED_GROUP_AUTO": "BEM automation is disabled.",
+                "BEM_GUIDED_GROUP_MANUAL": "BEM automation is disabled.",
+                "BEM_GUIDED_SOLVER_COMMON": "BEM automation is disabled.",
+                "BEM_GUIDED_SYMMETRY": "BEM automation is disabled.",
+                "BEM_GUIDED_OBSERVATION_COMMON": "BEM automation is disabled.",
+                "BEM_GUIDED_OBSERVATION_POLAR": "BEM automation is disabled.",
+                "BEM_GUIDED_OBSERVATION_CUSTOM": "BEM automation is disabled.",
+            },
+        },
+        "1": {
+            "relevant_groups": (
+                "BEM_GUIDED_CONTROLLERS",
+                "BEM_GUIDED_MESH_COMMON",
+                "BEM_GUIDED_SOLVER_COMMON",
+                "BEM_GUIDED_SYMMETRY",
+                "BEM_GUIDED_OBSERVATION_COMMON",
+            ),
+        },
+    },
+    "BEM.Backend": {
+        "__default__": {
+            "relevant_groups": ("BEM_GUIDED_BACKEND_WSL",),
+            "inactive_groups": {
+                "BEM_GUIDED_BACKEND_LOCAL": "Only used for Backend = local_python.",
+                "BEM_GUIDED_BACKEND_CONDA": "Only used for Backend = conda.",
+            },
+        },
+        "wsl": {
+            "relevant_groups": ("BEM_GUIDED_BACKEND_WSL",),
+            "inactive_groups": {
+                "BEM_GUIDED_BACKEND_LOCAL": "Only used for Backend = local_python.",
+                "BEM_GUIDED_BACKEND_CONDA": "Only used for Backend = conda.",
+            },
+        },
+        "local_python": {
+            "relevant_groups": ("BEM_GUIDED_BACKEND_LOCAL",),
+            "inactive_groups": {
+                "BEM_GUIDED_BACKEND_WSL": "Only used for Backend = wsl.",
+                "BEM_GUIDED_BACKEND_CONDA": "Only used for Backend = conda.",
+            },
+        },
+        "conda": {
+            "relevant_groups": ("BEM_GUIDED_BACKEND_CONDA",),
+            "inactive_groups": {
+                "BEM_GUIDED_BACKEND_WSL": "Only used for Backend = wsl.",
+                "BEM_GUIDED_BACKEND_LOCAL": "Only used for Backend = local_python.",
+            },
+        },
+    },
+    "BEM.MeshSourceMode": {
+        "__default__": {
+            "relevant_groups": ("BEM_GUIDED_MESH_COMMON", "BEM_GUIDED_MESH_MANUAL"),
+        },
+        "latest_ath_output": {
+            "relevant_groups": ("BEM_GUIDED_MESH_COMMON",),
+            "inactive_groups": {
+                "BEM_GUIDED_MESH_MANUAL": "Mesh file comes from the latest ATH output.",
+            },
+        },
+        "manual_mesh_file": {
+            "relevant_groups": ("BEM_GUIDED_MESH_COMMON", "BEM_GUIDED_MESH_MANUAL"),
+        },
+    },
+    "BEM.GroupMode": {
+        "__default__": {
+            "relevant_groups": ("BEM_GUIDED_GROUP_AUTO",),
+            "inactive_groups": {
+                "BEM_GUIDED_GROUP_MANUAL": "Only used for GroupMode = manual.",
+            },
+        },
+        "auto": {
+            "relevant_groups": ("BEM_GUIDED_GROUP_AUTO",),
+            "inactive_groups": {
+                "BEM_GUIDED_GROUP_MANUAL": "Only used for GroupMode = manual.",
+            },
+        },
+        "manual": {
+            "relevant_groups": ("BEM_GUIDED_GROUP_MANUAL",),
+            "inactive_groups": {
+                "BEM_GUIDED_GROUP_AUTO": "Only used for GroupMode = auto.",
+            },
+        },
+    },
+    "BEM.SolverMode": {
+        "__default__": {
+            "relevant_groups": ("BEM_GUIDED_SOLVER_COMMON",),
+        },
+        "exterior_velocity_bc": {
+            "relevant_groups": ("BEM_GUIDED_SOLVER_COMMON",),
+        },
+    },
+    "BEM.ObservationMode": {
+        "__default__": {
+            "relevant_groups": ("BEM_GUIDED_OBSERVATION_COMMON", "BEM_GUIDED_OBSERVATION_POLAR"),
+            "inactive_groups": {
+                "BEM_GUIDED_OBSERVATION_CUSTOM": "Only used for ObservationMode = custom_directivity.",
+            },
+        },
+        "polar_map": {
+            "relevant_groups": ("BEM_GUIDED_OBSERVATION_COMMON", "BEM_GUIDED_OBSERVATION_POLAR"),
+            "inactive_groups": {
+                "BEM_GUIDED_OBSERVATION_CUSTOM": "Only used for ObservationMode = custom_directivity.",
+            },
+        },
+        "custom_directivity": {
+            "relevant_groups": ("BEM_GUIDED_OBSERVATION_COMMON", "BEM_GUIDED_OBSERVATION_CUSTOM"),
+            "inactive_groups": {
+                "BEM_GUIDED_OBSERVATION_POLAR": "Only used for ObservationMode = polar_map.",
+            },
+        },
+    },
+}
+
+BEM_SANITIZE_RESET_VALUES: dict[str, object] = {
+    "BEM.WslVenv": "",
+    "BEM.WslSolverEntry": "",
+    "BEM.LocalPythonExe": "",
+    "BEM.CondaExe": "",
+    "BEM.CondaEnv": "",
+    "BEM.MeshFile": "",
+    "BEM.AutoGroupStrategy": "",
+    "BEM.SourceGroups": "",
+    "BEM.WallGroups": "",
+    "BEM.InterfaceGroups": "",
+    "BEM.IgnoreGroups": "",
+    "BEM.ExportPng": False,
+    "BEM.ExportBoundaryPressure": False,
+}
+
+BEM_GUIDED_FIELD_SECTIONS = (
+    ("BEM Automation", "Guided Setup 中的 BEM 執行控制，不會寫入 ATH cfg。", BEM_AUTOMATION_FIELDS),
+    ("Mesh 與 Group Mapping", "依 mesh source / group mode 自動切換顯示欄位。", BEM_MESH_FIELDS),
+    ("Solver", "BEM solver 常用參數。", BEM_SOLVER_FIELDS),
+    ("Symmetry", "對稱降階設定。", BEM_SYMMETRY_FIELDS),
+    ("Observation", "遠場觀測與匯出模式。", BEM_OBSERVATION_FIELDS),
 )

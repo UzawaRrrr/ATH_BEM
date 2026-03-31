@@ -1,0 +1,15 @@
+{
+  "recipe": "E:\\pythonGATH\\ath-2025-06\\projects\\optuna_smoke_recipe3.json",
+  "base_horn_cfg": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260330_043549\\input\\horn.cfg",
+  "stage": "coarse",
+  "target_bw_h": null,
+  "target_bw_v": null,
+  "backend": "wsl",
+  "planes": [
+    "XZ"
+  ],
+  "study_name": "optuna_cli_smoke",
+  "storage": null,
+  "seed": 42,
+  "trials": 1
+}

@@ -1,0 +1,30 @@
+{
+  "case_name": "optuna_cli_smoke",
+  "throat_diameter": 21.904904326615817,
+  "horn_length": 286.7991196098148,
+  "coverage_angle": 106.0039294096016,
+  "flare_style": "os",
+  "mouth_shape": "rect",
+  "mouth_width": 275.6491669990682,
+  "mouth_height": 154.38932494625553,
+  "mouth_corner_radius": 9.751165027652283,
+  "source_mode": "normal",
+  "source_shape": "disk",
+  "source_velocity": 0.5755086958186593,
+  "auto_enclosure_enabled": false,
+  "output_abec_project_enabled": true,
+  "bem_f1": 1500.0,
+  "bem_f2": 3000.0,
+  "bem_num_freq": 3,
+  "observation_plane": "XZ",
+  "mic_distance": 5.0,
+  "symmetry_enabled": true,
+  "symmetry_planes": [
+    "x",
+    "y"
+  ],
+  "notes": "from_current_ui",
+  "ath_overrides": {},
+  "bem_overrides": {},
+  "schema": "ath.design_recipe.v1"
+}

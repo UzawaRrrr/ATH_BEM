@@ -1,0 +1,30 @@
+{
+  "case_name": "config",
+  "throat_diameter": 25.603891095166556,
+  "horn_length": 230.67410598401102,
+  "coverage_angle": 104.32747628419068,
+  "flare_style": "os",
+  "mouth_shape": "rect",
+  "mouth_width": 168.46579797600185,
+  "mouth_height": 127.72647076736281,
+  "mouth_corner_radius": 19.481942255588184,
+  "source_mode": "normal",
+  "source_shape": "disk",
+  "source_velocity": 1.2107233631462635,
+  "auto_enclosure_enabled": false,
+  "output_abec_project_enabled": true,
+  "bem_f1": 1500.0,
+  "bem_f2": 1600.0,
+  "bem_num_freq": 30,
+  "observation_plane": "XZ",
+  "mic_distance": 5.0,
+  "symmetry_enabled": true,
+  "symmetry_planes": [
+    "x",
+    "y"
+  ],
+  "notes": "from_current_ui",
+  "ath_overrides": {},
+  "bem_overrides": {},
+  "schema": "ath.design_recipe.v1"
+}

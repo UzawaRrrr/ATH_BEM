@@ -59,6 +59,149 @@ ath-2025-06/                    # 主應用目錄
 - 你可維持原本欄位填寫習慣，不需要切換到額外模式。
 - 舊手動流程（`Run ATH / Inspect Mesh / Run BEM / Reload Results`）維持不變。
 
+## Optuna Objective Scoring Layer
+
+- `ath-2025-06/optimizer/` 提供一套 headless objective/scoring 核心，專門給自動化與 Optuna 使用，不改動既有 GUI 行為。
+- 既有流程仍負責 `ATH -> mesh -> solver -> postprocess`；新的 objective 層只負責把已解析結果轉成單一 scalar score，並保留子分數給 trial attrs / debug。
+- 目前版本是 pure Optuna 單一目標評分；尚未包含 PCA、多目標 optimizer、surrogate model 或 dashboard。
+
+### 分層責任
+
+- `case runner`：執行既有 ATH / mesh / BEM / postprocess 自動化流程，回傳 `CaseResult`。
+- `result bridge`：把 `CaseResult` 或既有 dict bundle 轉成 `PolarData + GeometryStatus`。
+- `objective/scorer`：只負責計算 scalar objective 與 component scores。
+
+case runner 不直接回傳 `PolarData`，是為了把「流程輸出」與「聲學評分模型」解耦。這樣同一份 run artifacts 可以重跑不同 scorer，也讓 legacy fallback 與 canonical payload 可以共存。
+
+### Canonical Artifacts
+
+- `optimizer_payload.npz`
+- `optimizer_status.json`
+
+bridge 會優先讀這兩個 canonical artifacts。`optimizer_payload.npz` 由 `np.savez_compressed` 儲存 scorer 所需陣列；`optimizer_status.json` 則保存 mesh / geometry / solver 狀態，不把複雜狀態硬塞進 npz。
+
+### Legacy Fallback Artifacts
+
+- `summary.json`
+- `mesh_info.json`
+- `polar.csv`
+- `solution.npz`
+
+若 canonical payload 不存在，bridge 會回退到 legacy artifacts。這讓現有流程不需要一次重寫，也能先用 bridge 進 Optuna。
+
+### 最小用法
+
+```python
+from optimizer.objective import optuna_objective_wrapper
+from optimizer.score_defaults import build_default_objective_config
+
+config = build_default_objective_config(stage="final")
+
+def objective(trial):
+    return optuna_objective_wrapper(
+        trial,
+        case_runner=case_runner,
+        config=config,
+    )
+```
+
+若你只想在本地 smoke test scorer，可執行：
+
+```bash
+cd ath-2025-06
+python -m optimizer.demo
+python -m optimizer.demo --mode bridge
+```
+
+### 建議執行環境
+
+- 建議拓樸是 `Windows 本地 .venv + WSL solver venv`。
+- 本地 `.venv` 負責：
+  - `ath.exe`
+  - workspace / manifest / bridge
+  - Optuna / objective scorer
+- WSL venv 負責：
+  - `bempp-cl`
+  - `meshio`
+  - `scipy`
+  - `gmsh`
+
+原因很直接：`ath.exe` 是 Windows 程式，而既有 BEM 流程本來就已經是 Windows -> WSL bridge。這樣可以最大化重用現有 pipeline，也避免把整個 GUI/ATH 執行鏈硬搬進 WSL。
+
+可先用 doctor 檢查環境：
+
+```bash
+cd ath-2025-06
+..\.venv\Scripts\python.exe scripts/check_optimizer_env.py
+```
+
+若 doctor 顯示 `Recommended topology: hybrid`，就表示建議的最佳化環境已就緒。
+
+### Headless Runner 與正式 Optuna 入口
+
+- `optimizer.headless_case_runner.HeadlessCaseRunner`
+  - 重用既有 `ATH -> mesh inspect -> group mapping -> BEM` 流程
+  - 回傳 `CaseResult`
+  - 會在 workspace `bempp/` 根目錄輸出合併後的 `optimizer_payload.npz` / `optimizer_status.json`
+- `scripts/run_optuna.py`
+  - 正式 CLI 入口
+  - 會建立 study、呼叫 headless runner、寫出 `best_trial.json` 與 `trials.json`
+- `optimizer.study_runner`
+  - CLI 與 GUI 共用的 study orchestration service
+  - 統一處理 Optuna sampler、trial event、study artifact 落地
+
+如果 `design_recipe.json` 只是高階 recipe，而完整幾何細節存在某份已驗證的 `horn.cfg`，請把那份 `horn.cfg` 當 base template 傳入。這很重要，因為 `DesignRecipe` 只覆蓋部分 ATH 欄位，最佳化通常應該在一份「已知可生成幾何」的 base horn state 上做相對調整。
+
+最小實跑範例：
+
+```bash
+cd ath-2025-06
+..\.venv\Scripts\python.exe scripts/run_optuna.py ^
+  --recipe projects/optuna_smoke_recipe3.json ^
+  --base-horn-cfg projects/config/runs/20260330_043549/input/horn.cfg ^
+  --trials 1 ^
+  --stage coarse ^
+  --planes XZ ^
+  --study-name optuna_cli_smoke ^
+  --study-dir projects/optuna_cli_smoke_artifacts
+```
+
+實務上正式最佳化時，通常建議：
+
+- `--planes XZ YZ`：讓 scorer 取得 H/V 兩個平面
+- `--stage coarse` 先找方向，再切到 `refine` / `final`
+- `--base-horn-cfg` 指向一份已成功跑過的 `input/horn.cfg`
+- `--recipe` 指向對應的 `design_recipe.json`
+
+### GUI 內建最佳化控制
+
+- GUI 現在新增左側 `Optimize` 分頁與右側 `Study` 工作區。
+- `Optimize` 分頁只負責 study/control 參數：
+  - stage
+  - trials
+  - planes
+  - study name / dir / storage / seed
+  - target beamwidth
+- BEM backend、WSL venv、conda/local solver 等執行環境設定，仍沿用既有 `BEM` 分頁欄位，不重複維護第二套設定。
+- 按下 `開始最佳化` 後，GUI 會：
+  - 取目前 GUI 的 horn/global/BEM state 當 base template
+  - 由 `OptimizationController` 建立 headless runner
+  - 呼叫 `optimizer.study_runner.run_optuna_study(...)`
+  - 即時把 trial log、best score、best params 寫到 `Study` 頁面
+- `套用最佳結果` 會把 best trial 中可直接映射到 `DesignRecipe` 的欄位回寫到目前 GUI，方便再手動微調或直接 `Run All`。
+
+這裡刻意沒有讓 case runner 直接回傳 `PolarData`。GUI / CLI / batch pipeline 都只需要產生 `CaseResult + artifacts`；bridge 與 scorer 仍維持可替換，這樣 legacy outputs、canonical payload 與未來其他評分器可以共存。
+
+### Component 物理意義
+
+- `coverage`: 追蹤目標離軸曲線，或在無 target curve 時改用 beamwidth tracking。
+- `cd`: constant directivity 穩定度，量測各角度在頻帶內是否維持一致的相對衰減。
+- `hom`: HOM / diffraction proxy，由角度單調性違反、角向粗糙度、頻向粗糙度與 edge kink 合成。
+- `room`: on-axis、listening window、sound power 的平滑度代理，偏向室內主觀可聽結果。
+- `di`: DI 與 beamwidth 的頻向平滑度，避免 directivity index 劇烈抖動。
+- `load`: throat reflection / radiation efficiency 等負載代理的保留介面；無資料時會標記 unavailable 並回傳 0。
+- `geom` / `hard`: 幾何品質與 catastrophic fail 懲罰，將 mesh/solver/geometry 錯誤與平滑度指標明確分層。
+
 ## 技術棧
 - **GUI**：Tkinter、matplotlib、VTK
 - **求解器**：bempp-cl (OpenCL 加速)、NumPy、SciPy

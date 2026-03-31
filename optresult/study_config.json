@@ -1,0 +1,14 @@
+{
+  "recipe_case_name": "config",
+  "stage": "coarse",
+  "target_bw_h": 70.0,
+  "target_bw_v": 60.0,
+  "planes": [
+    "XZ",
+    "YZ"
+  ],
+  "study_name": "#1test",
+  "storage": null,
+  "seed": 42,
+  "trials": 10
+}

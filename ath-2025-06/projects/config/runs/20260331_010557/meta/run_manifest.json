@@ -1,0 +1,103 @@
+{
+  "status": "done",
+  "started_at": "2026-03-31T01:05:57",
+  "stages": [
+    {
+      "stage": "preparing",
+      "detail": "headless runner setup",
+      "time": "2026-03-31T01:05:57"
+    },
+    {
+      "stage": "running ATH",
+      "detail": "ATH mesh generation",
+      "time": "2026-03-31T01:05:57"
+    },
+    {
+      "stage": "mapping groups",
+      "detail": "BEM group mapping",
+      "time": "2026-03-31T01:06:00"
+    }
+  ],
+  "workspace_paths": {
+    "run_root": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557",
+    "input": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\input",
+    "ath": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\ath",
+    "bempp": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\bempp",
+    "meta": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\meta"
+  },
+  "recipe": {
+    "case_name": "config",
+    "throat_diameter": 23.278888064412104,
+    "horn_length": 255.0011195891716,
+    "coverage_angle": 74.92788264906407,
+    "flare_style": "os",
+    "mouth_shape": "rect",
+    "mouth_width": 173.46664672554914,
+    "mouth_height": 118.6339244877277,
+    "mouth_corner_radius": 26.996563665132236,
+    "source_mode": "normal",
+    "source_shape": "disk",
+    "source_velocity": 1.2954087631390934,
+    "auto_enclosure_enabled": false,
+    "output_abec_project_enabled": true,
+    "bem_f1": 1500.0,
+    "bem_f2": 1600.0,
+    "bem_num_freq": 30,
+    "observation_plane": "XZ",
+    "mic_distance": 5.0,
+    "symmetry_enabled": true,
+    "symmetry_planes": [
+      "x",
+      "y"
+    ],
+    "notes": "from_current_ui",
+    "ath_overrides": {},
+    "bem_overrides": {},
+    "schema": "ath.design_recipe.v1"
+  },
+  "mesh_file": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\ath\\horn\\ABEC_FreeStanding\\horn.msh",
+  "finished_at": "2026-03-31T01:25:41",
+  "group_map": {
+    "schema": "ath.group_map.v1",
+    "mesh_family": "cd55f1fd4db0",
+    "source_groups": [
+      2
+    ],
+    "wall_groups": [
+      1,
+      3
+    ],
+    "interface_groups": [],
+    "ignore_groups": [
+      4
+    ],
+    "confidence": "manual_fixed",
+    "requires_confirmation": false,
+    "reasons": [
+      "Fixed mapping by current branch rule: source=2, wall=1,3, ignore=4."
+    ]
+  },
+  "result_dir": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\bempp",
+  "plane_runs": {
+    "XZ": {
+      "result_dir": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\bempp\\plane_xz",
+      "summary_json": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\bempp\\plane_xz\\summary.json",
+      "optimizer_payload": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\bempp\\plane_xz\\optimizer_payload.npz",
+      "optimizer_status_json": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\bempp\\plane_xz\\optimizer_status.json",
+      "exit_code": 0
+    },
+    "YZ": {
+      "result_dir": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\bempp\\plane_yz",
+      "summary_json": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\bempp\\plane_yz\\summary.json",
+      "optimizer_payload": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\bempp\\plane_yz\\optimizer_payload.npz",
+      "optimizer_status_json": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557\\bempp\\plane_yz\\optimizer_status.json",
+      "exit_code": 0
+    }
+  },
+  "schema": "ath.workspace_manifest.v1",
+  "case_name": "config",
+  "case_key": "config",
+  "run_id": "20260331_010557",
+  "workspace": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260331_010557",
+  "updated_at": "2026-03-31T01:25:41"
+}

@@ -59,6 +59,8 @@ class DesignRecipe:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "DesignRecipe":
         data = dict(payload)
+        allowed_keys = set(cls.__dataclass_fields__)
+        data = {key: value for key, value in data.items() if key in allowed_keys}
         planes = data.get("symmetry_planes", ())
         if isinstance(planes, list):
             data["symmetry_planes"] = tuple(str(item) for item in planes)

@@ -5,20 +5,31 @@ from importlib.util import find_spec
 from pathlib import Path
 
 from .domain.config_core import (
+    build_guided_field_states,
     default_horn_state,
     load_global_state,
     load_horn_state,
     normalize_branch_locked_horn_state,
     render_global_text,
     render_horn_text,
+    sanitize_ath_state,
+    sanitize_state_by_rules,
 )
 from .domain.design_recipe import DesignRecipe
-from .domain.specs import ATH_EXE, ROOT_DIR
+from .domain.specs import ATH_EXE, QUICK_FIELD_SECTIONS, ROOT_DIR, SIMPLE_FIELD_SPECS
 from .infrastructure.bem_bridge import build_bem_solver_command, expand_wsl_user_path, quote_bash_path, windows_path_to_wsl
 from .infrastructure.group_mapper import suggest_group_map
 from .infrastructure.project_workspace import create_workspace, latest_workspace_for_case, write_manifest
 from .infrastructure.bem_results import describe_bem_status, format_summary_text
-from .infrastructure.bem_state import build_job_payload, default_bem_state
+from .infrastructure.bem_state import (
+    apply_group_map_to_bem_state,
+    build_bem_guided_field_states,
+    build_bem_runtime_settings,
+    build_job_payload,
+    default_bem_state,
+    resolve_group_map_payload,
+    sanitize_bem_state,
+)
 from .infrastructure.preview_core import (
     build_preview_command,
     describe_group_source,
@@ -72,6 +83,9 @@ CustomThing = 42
     assert "Output.STL = 1" in default_rendered
     assert "Output.MSH = 0" in default_rendered
     assert "Output.ABECProject = 0" in default_rendered
+    for _title, _description, fields in QUICK_FIELD_SECTIONS:
+        for spec in fields:
+            assert spec.key in SIMPLE_FIELD_SPECS
 
     branch_state = default_horn_state()
     branch_state["Throat.Profile"] = "1"
@@ -91,6 +105,138 @@ CustomThing = 42
     assert normalized_branch["Morph.TargetHeight"] == "0"
     branch_rendered = render_horn_text(normalized_branch)
     assert "GCurve.SE.n" not in branch_rendered
+
+    arc_state = default_horn_state()
+    arc_state["Throat.Profile"] = "3"
+    arc_state["GCurve.Type"] = "2"
+    arc_state["GCurve.SF"] = "1,2,3,4,5,6"
+    arc_state["Term.s"] = "0.51"
+    arc_state["CircArc.Radius"] = "78"
+    arc_state["CircArc.TermAngle"] = "23"
+    sanitized_arc = sanitize_state_by_rules(arc_state)
+    assert sanitized_arc["GCurve.Type"] == ""
+    assert sanitized_arc["GCurve.SF"] == ""
+    assert sanitized_arc["Term.s"] == ""
+    assert sanitized_arc["CircArc.Radius"] == "78"
+    assert sanitized_arc["CircArc.TermAngle"] == "23"
+
+    rollback_state = default_horn_state()
+    rollback_state["ABEC.SimType"] = "1"
+    rollback_state["Rollback"] = True
+    rollback_state["Rollback.StartAt"] = "0.3"
+    rollback_state["Rollback.Angle"] = "55"
+    sanitized_rollback = sanitize_state_by_rules(rollback_state)
+    assert sanitized_rollback["Rollback"] is False
+    assert sanitized_rollback["Rollback.StartAt"] == ""
+    assert sanitized_rollback["Rollback.Angle"] == ""
+
+    guided_state = build_guided_field_states(
+        {
+            "Throat.Profile": "1",
+            "GCurve.Type": "2",
+            "Morph.TargetShape": "0",
+            "ABEC.SimType": "1",
+            "Rollback": True,
+        }
+    )
+    assert guided_state["GCurve.Type"]["relevant"] is True
+    assert guided_state["GCurve.SF"]["relevant"] is True
+    assert guided_state["GCurve.SE.n"]["relevant"] is False
+    assert guided_state["Coverage.Angle"]["relevant"] is False
+    assert guided_state["Morph.TargetWidth"]["relevant"] is False
+    assert guided_state["Rollback"]["relevant"] is False
+
+    effective_ath_state = sanitize_ath_state(
+        {
+            "ABEC.SimType": "2",
+            "Throat.Profile": "1",
+            "GCurve.Type": "1",
+            "Morph.TargetShape": "1",
+            "Rollback": False,
+        }
+    )
+    bem_guided_state = build_bem_guided_field_states(
+        {
+            "BEM.Enabled": True,
+            "BEM.Backend": "conda",
+            "BEM.MeshSourceMode": "latest_ath_output",
+            "BEM.GroupMode": "auto",
+            "BEM.ObservationMode": "polar_map",
+        },
+        effective_ath_state,
+    )
+    assert bem_guided_state["BEM.Enabled"]["relevant"] is True
+    assert bem_guided_state["BEM.MeshFile"]["relevant"] is False
+    assert bem_guided_state["BEM.AutoGroupStrategy"]["relevant"] is True
+    assert bem_guided_state["BEM.SourceGroups"]["relevant"] is False
+    assert bem_guided_state["BEM.CondaExe"]["relevant"] is True
+    assert bem_guided_state["BEM.WslVenv"]["relevant"] is False
+    assert bem_guided_state["BEM.ExportPng"]["relevant"] is True
+    assert bem_guided_state["BEM.ExportBoundaryPressure"]["relevant"] is False
+
+    disabled_bem_state = sanitize_bem_state(
+        {
+            "BEM.Enabled": False,
+            "BEM.Backend": "conda",
+            "BEM.MeshSourceMode": "manual_mesh_file",
+            "BEM.MeshFile": "E:/tmp/manual.msh",
+            "BEM.GroupMode": "manual",
+            "BEM.SourceGroups": "2",
+            "BEM.WallGroups": "1,3",
+        },
+        effective_ath_state,
+    )
+    assert disabled_bem_state["BEM.Enabled"] is False
+    assert disabled_bem_state["BEM.Backend"] == "wsl"
+    assert disabled_bem_state["BEM.MeshFile"] == ""
+    assert disabled_bem_state["BEM.SourceGroups"] == ""
+
+    latest_mesh_bem_state = sanitize_bem_state(
+        {
+            "BEM.Enabled": True,
+            "BEM.MeshSourceMode": "latest_ath_output",
+            "BEM.MeshFile": "E:/tmp/should_be_cleared.msh",
+            "BEM.GroupMode": "auto",
+            "BEM.AutoGroupStrategy": "fixed_current",
+        },
+        {"ABEC.SimType": "1"},
+    )
+    assert latest_mesh_bem_state["BEM.MeshFile"] == ""
+    assert latest_mesh_bem_state["BEM.AutoGroupStrategy"] == "name_heuristic"
+
+    runtime_settings = build_bem_runtime_settings(
+        {
+            "BEM.Enabled": True,
+            "BEM.Backend": "local_python",
+            "BEM.LocalPythonExe": "E:/Python/python.exe",
+            "BEM.MeshSourceMode": "latest_ath_output",
+            "BEM.GroupMode": "manual",
+        },
+        effective_ath_state,
+    )
+    assert runtime_settings["enabled"] is True
+    assert runtime_settings["backend"] == "local_python"
+    assert runtime_settings["requires_ath_mesh_output"] is True
+    assert dict(runtime_settings["launch_options"])["local_python_exe"] == "E:/Python/python.exe"
+
+    auto_group_payload = resolve_group_map_payload(
+        {
+            "BEM.Enabled": True,
+            "BEM.GroupMode": "auto",
+            "BEM.AutoGroupStrategy": "fixed_current",
+        },
+        {
+            "group_source": "gmsh physical groups",
+            "detected_groups": [1, 2, 3, 4],
+            "element_count_per_group": {"1": 10, "2": 20, "3": 30, "4": 5},
+        },
+        {"ABEC.SimType": "2"},
+    )
+    assert auto_group_payload["source_groups"] == [2]
+    assert auto_group_payload["wall_groups"] == [1, 3]
+    mapped_bem_state = apply_group_map_to_bem_state(default_bem_state(), auto_group_payload)
+    assert mapped_bem_state["BEM.SourceGroups"] == "2"
+    assert mapped_bem_state["BEM.WallGroups"] == "1,3"
 
     with tempfile.TemporaryDirectory() as temp_dir_name:
         temp_dir = Path(temp_dir_name)
