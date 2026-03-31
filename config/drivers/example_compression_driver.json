@@ -1,0 +1,21 @@
+{
+  "driver_id": "jbl_2409h",
+  "name": "JBL 2409H",
+  "driver_type": "compression_driver",
+  "diaphragm_diameter_mm": 38.0,
+  "effective_diaphragm_diameter_mm": 34.0,
+  "throat_diameter_mm": 25.0,
+  "exit_angle_deg": 10.0,
+  "mounting_flange_diameter_mm": 90.0,
+  "bolt_circle_diameter_mm": 76.0,
+  "bolt_count": 4,
+  "min_adapter_length_mm": 8.0,
+  "preferred_min_mouth_to_throat_ratio": 3.0,
+  "preferred_max_coverage_deg": 110.0,
+  "notes": [
+    "Example profile for optimizer-side design-space derivation."
+  ],
+  "metadata": {
+    "source": "example"
+  }
+}

@@ -259,6 +259,7 @@ class OptimizationController:
 
     def _build_study_settings(self, optimizer_state: dict[str, object], base_recipe: DesignRecipe) -> tuple[Any, dict[str, Any]]:
         from optimizer.study_runner import OptunaStudyConfig, parse_planes_spec
+        from optimizer.driver_profile import ProductConstraints
 
         def _as_int(key: str, *, minimum: int = 1) -> int:
             text = str(optimizer_state.get(key, "")).strip()
@@ -273,6 +274,12 @@ class OptimizationController:
                 return None
             return float(text)
 
+        def _as_optional_path(key: str) -> Path | None:
+            text = str(optimizer_state.get(key, "")).strip()
+            if not text:
+                return None
+            return Path(text).expanduser().resolve()
+
         stage = str(optimizer_state.get("OPT.Stage", "coarse")).strip().lower() or "coarse"
         if stage not in {"coarse", "refine", "final"}:
             raise ValueError(f"Unsupported OPT.Stage: {stage}")
@@ -281,6 +288,27 @@ class OptimizationController:
         study_dir = Path(study_dir_text).expanduser().resolve() if study_dir_text else None
         storage_text = str(optimizer_state.get("OPT.Storage", "")).strip() or None
         study_name = str(optimizer_state.get("OPT.StudyName", "")).strip() or f"{base_recipe.case_name}_gui"
+        driver_profile_path = _as_optional_path("OPT.DriverProfilePath")
+        product_constraints = ProductConstraints(
+            max_baffle_width_mm=_as_optional_float("OPT.MaxBaffleWidth"),
+            max_baffle_height_mm=_as_optional_float("OPT.MaxBaffleHeight"),
+            max_depth_mm=_as_optional_float("OPT.MaxDepth"),
+            min_wall_thickness_mm=_as_optional_float("OPT.MinWallThickness"),
+            target_low_freq_hz=_as_optional_float("OPT.TargetLowFreq"),
+            target_high_freq_hz=_as_optional_float("OPT.TargetHighFreq"),
+        )
+        if not any(
+            value is not None
+            for value in (
+                product_constraints.max_baffle_width_mm,
+                product_constraints.max_baffle_height_mm,
+                product_constraints.max_depth_mm,
+                product_constraints.min_wall_thickness_mm,
+                product_constraints.target_low_freq_hz,
+                product_constraints.target_high_freq_hz,
+            )
+        ):
+            product_constraints = None
 
         config = OptunaStudyConfig(
             trials=_as_int("OPT.Trials", minimum=1),
@@ -292,6 +320,8 @@ class OptimizationController:
             storage=storage_text,
             seed=_as_int("OPT.Seed", minimum=0),
             enqueue_base=bool(optimizer_state.get("OPT.EnqueueBase", True)),
+            driver_profile_path=driver_profile_path,
+            product_constraints=product_constraints,
         )
         metadata = {
             "recipe_case_name": base_recipe.case_name,
@@ -303,6 +333,8 @@ class OptimizationController:
             "storage": config.storage,
             "seed": config.seed,
             "trials": config.trials,
+            "driver_profile_path": None if driver_profile_path is None else str(driver_profile_path),
+            "product_constraints": None if product_constraints is None else product_constraints.to_dict(),
         }
         metadata["planes"] = planes
         return config, metadata

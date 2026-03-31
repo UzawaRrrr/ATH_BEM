@@ -10,10 +10,13 @@ from pathlib import Path
 import numpy as np
 
 from .case_result import CaseArtifacts, CaseResult, CaseStatus
+from .driver_profile import DriverProfile, ProductConstraints
 from .objective import evaluate_objective, optuna_objective_wrapper
 from .result_bridge import emit_optimizer_payload, emit_optimizer_status_json
 from .score_defaults import build_default_objective_config
 from .score_types import GeometryStatus, PolarData
+from .study_runner import OptunaStudyConfig, run_optuna_study
+from ath_gui.domain.design_recipe import DesignRecipe
 
 
 def build_synthetic_demo_case() -> tuple[PolarData, GeometryStatus]:
@@ -136,11 +139,93 @@ def run_fake_optuna_bridge_demo() -> None:
         print(f"trial attrs keys={sorted(trial.user_attrs)[:8]} ... total={len(trial.user_attrs)}")
 
 
+def run_fake_study_feasibility_demo() -> None:
+    """Run a tiny study through driver_profile -> design_space -> feasibility."""
+
+    class _FakeRunner:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run(self, params: dict[str, float]) -> dict[str, object]:
+            self.calls += 1
+            return {
+                "frequencies_hz": [1000.0, 2000.0, 4000.0],
+                "angles_deg": [0.0, 15.0],
+                "spl_db": [
+                    [100.0, 98.0],
+                    [100.5, 98.5],
+                    [101.0, 99.0],
+                ],
+                "summary": {
+                    "status": "done",
+                    "plane": "XZ",
+                    "onaxis_db": [100.0, 100.5, 101.0],
+                    "beamwidth_6_h_deg": [90.0, 80.0, 70.0],
+                },
+            }
+
+    base_recipe = DesignRecipe(
+        case_name="study_demo",
+        throat_diameter=25.0,
+        horn_length=210.0,
+        coverage_angle=88.0,
+        mouth_width=140.0,
+        mouth_height=185.0,
+        mouth_corner_radius=16.0,
+        source_mode="normal",
+        source_velocity=1.0,
+        bem_f1=1000.0,
+        bem_f2=8000.0,
+        bem_num_freq=4,
+        observation_plane="XZ",
+    )
+    driver_profile = DriverProfile(
+        driver_id="demo_cd",
+        name="Demo CD",
+        driver_type="compression_driver",
+        throat_diameter_mm=25.0,
+        min_adapter_length_mm=8.0,
+        preferred_min_mouth_to_throat_ratio=3.0,
+        preferred_max_coverage_deg=110.0,
+    )
+    product_constraints = ProductConstraints(
+        max_baffle_width_mm=280.0,
+        max_baffle_height_mm=220.0,
+        max_depth_mm=240.0,
+        min_wall_thickness_mm=4.0,
+        target_bw_h_deg=90.0,
+        target_bw_v_deg=60.0,
+        target_low_freq_hz=1000.0,
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        runner = _FakeRunner()
+        result = run_optuna_study(
+            base_recipe=base_recipe,
+            case_runner=runner,
+            config=OptunaStudyConfig(
+                trials=2,
+                stage="final",
+                study_name="fake_study_demo",
+                study_dir=Path(tmp),
+                seed=123,
+                driver_profile=driver_profile,
+                product_constraints=product_constraints,
+            ),
+        )
+        best_trial = result.study.best_trial
+        print(f"study best={best_trial.value:.6f}")
+        print(f"runner calls={runner.calls}")
+        print(f"best params={best_trial.user_attrs.get('design_space.actual_params', {})}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Synthetic demos for the optimizer scorer/bridge.")
-    parser.add_argument("--mode", choices=("scorer", "bridge"), default="scorer")
+    parser.add_argument("--mode", choices=("scorer", "bridge", "study"), default="scorer")
     args = parser.parse_args()
     if args.mode == "bridge":
         run_fake_optuna_bridge_demo()
+    elif args.mode == "study":
+        run_fake_study_feasibility_demo()
     else:
         main()

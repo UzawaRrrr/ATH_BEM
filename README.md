@@ -65,6 +65,93 @@ ath-2025-06/                    # 主應用目錄
 - 既有流程仍負責 `ATH -> mesh -> solver -> postprocess`；新的 objective 層只負責把已解析結果轉成單一 scalar score，並保留子分數給 trial attrs / debug。
 - 目前版本是 pure Optuna 單一目標評分；尚未包含 PCA、多目標 optimizer、surrogate model 或 dashboard。
 
+### Driver-Constrained Preflight Layer
+
+現在 `optimizer/` 另外加入一層專門給 headless study 使用的前置層：
+
+- `driver_profile.py`
+  - 定義單體固定物理條件，例如 throat、法蘭、出口角與最短轉接長度。
+- `design_space.py`
+  - 不再直接讓 Optuna 在鬆散 raw recipe fields 上亂搜，而是先把 unit-space 變數 decode 成該單體專用的設計空間。
+- `feasibility.py`
+  - 在寫 ATH cfg、跑 mesh、跑 BEM 之前，先判斷幾何是否與單體/產品限制相容。
+
+這樣最佳化流程會變成：
+
+`normalized vars -> design space decode -> activation rules -> feasibility -> recipe -> case runner`
+
+好處是很直接的：
+
+- 固定 throat 的 driver 不會再被最佳化器拿去亂改 throat。
+- mouth width / height 會先受 driver throat 比例、target coverage、baffle 寬高與 depth 限制。
+- 幾何明顯不合理的 trial 會在 expensive pipeline 前就 hard fail，避免浪費 study budget。
+
+### Driver Profile JSON
+
+範例檔放在：
+
+- `config/drivers/example_compression_driver.json`
+
+最小格式如下：
+
+```json
+{
+  "driver_id": "jbl_2409h",
+  "name": "JBL 2409H",
+  "driver_type": "compression_driver",
+  "throat_diameter_mm": 25.0,
+  "min_adapter_length_mm": 8.0,
+  "preferred_min_mouth_to_throat_ratio": 3.0,
+  "preferred_max_coverage_deg": 110.0
+}
+```
+
+若 study 沒有明確提供 `driver_profile` / `product_constraints`，`study_runner` 會先從 base recipe 推估 fallback 約束，讓既有 GUI/CLI 流程維持可用；但正式最佳化仍建議提供明確 JSON 與產品尺寸限制。
+
+### Study Runner 用法
+
+```python
+from pathlib import Path
+
+from ath_gui.domain.design_recipe import DesignRecipe
+from optimizer.driver_profile import ProductConstraints, load_driver_profile
+from optimizer.study_runner import OptunaStudyConfig, run_optuna_study
+
+base_recipe = DesignRecipe.from_dict(...)
+driver_profile = load_driver_profile(Path("config/drivers/example_compression_driver.json"))
+product_constraints = ProductConstraints(
+    max_baffle_width_mm=280.0,
+    max_baffle_height_mm=220.0,
+    max_depth_mm=240.0,
+    target_bw_h_deg=90.0,
+    target_bw_v_deg=60.0,
+    target_low_freq_hz=1000.0,
+)
+
+config = OptunaStudyConfig(
+    trials=20,
+    stage="final",
+    driver_profile=driver_profile,
+    product_constraints=product_constraints,
+    enqueue_base=True,
+)
+
+result = run_optuna_study(
+    base_recipe=base_recipe,
+    case_runner=case_runner,
+    config=config,
+)
+```
+
+執行時 study runner 會先：
+
+- 建立 `driver_profile + product_constraints + design_space`
+- 先 enqueue 一組 driver-aware baseline seed
+- 先做 `validate_params_against_design_space(...)`
+- 再做 `validate_recipe_against_driver(...)`
+- 若 hard fail，直接回傳 catastrophic pre-score penalty，不呼叫 case runner
+- 若只有 soft issues，則把 soft penalty 加到最終 objective 前面
+
 ### 分層責任
 
 - `case runner`：執行既有 ATH / mesh / BEM / postprocess 自動化流程，回傳 `CaseResult`。
@@ -111,6 +198,7 @@ def objective(trial):
 cd ath-2025-06
 python -m optimizer.demo
 python -m optimizer.demo --mode bridge
+python -m optimizer.demo --mode study
 ```
 
 ### 建議執行環境

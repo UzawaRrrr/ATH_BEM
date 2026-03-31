@@ -43,13 +43,32 @@ OPTIMIZER_OBJECTIVE_FIELDS = (
 )
 
 
+OPTIMIZER_CONSTRAINT_FIELDS = (
+    FieldSpec(
+        "OPT.DriverProfilePath",
+        "Driver profile JSON",
+        default="",
+        browse="file",
+        width=52,
+        hint="可選；留白時會從目前 GUI recipe 保守推估 driver profile。",
+    ),
+    FieldSpec("OPT.MaxBaffleWidth", "最大障板寬 [mm]", default=""),
+    FieldSpec("OPT.MaxBaffleHeight", "最大障板高 [mm]", default=""),
+    FieldSpec("OPT.MaxDepth", "最大深度 [mm]", default=""),
+    FieldSpec("OPT.MinWallThickness", "最小壁厚 [mm]", default=""),
+    FieldSpec("OPT.TargetLowFreq", "目標最低頻 [Hz]", default=""),
+    FieldSpec("OPT.TargetHighFreq", "目標最高頻 [Hz]", default=""),
+)
+
+
 OPTIMIZER_FIELD_SECTIONS = (
     ("Study / sampler 控制。", OPTIMIZER_STUDY_FIELDS),
     ("Objective 目標設定。", OPTIMIZER_OBJECTIVE_FIELDS),
+    ("Driver / product constraints。", OPTIMIZER_CONSTRAINT_FIELDS),
 )
 
 
 def default_optimizer_state() -> dict[str, object]:
     """Return the default GUI state for optimization controls."""
-    fields = (*OPTIMIZER_STUDY_FIELDS, *OPTIMIZER_OBJECTIVE_FIELDS)
+    fields = (*OPTIMIZER_STUDY_FIELDS, *OPTIMIZER_OBJECTIVE_FIELDS, *OPTIMIZER_CONSTRAINT_FIELDS)
     return {spec.key: spec.default for spec in fields}

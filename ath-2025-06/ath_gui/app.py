@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import tkinter as tk
+from dataclasses import replace
 from pathlib import Path
 from tkinter import font as tkfont
 from tkinter import filedialog, messagebox, ttk
@@ -33,7 +34,12 @@ from .domain.config_core import (
     sanitize_ath_state,
 )
 from .domain.design_recipe import DesignRecipe
-from .domain.optimizer_specs import OPTIMIZER_FIELD_SECTIONS, default_optimizer_state
+from .domain.optimizer_specs import (
+    OPTIMIZER_CONSTRAINT_FIELDS,
+    OPTIMIZER_OBJECTIVE_FIELDS,
+    OPTIMIZER_STUDY_FIELDS,
+    default_optimizer_state,
+)
 from .domain.specs import (
     APP_TITLE,
     ATH_GLOBAL_CONFIG,
@@ -102,6 +108,7 @@ class AthConfigStudio(tk.Tk):
         self.global_widgets: dict[str, dict[str, object]] = {}
         self.horn_widgets: dict[str, dict[str, object]] = {}
         self.quick_widgets: dict[str, dict[str, object]] = {}
+        self.base_design_widgets: dict[str, dict[str, object]] = {}
         self.guided_widgets: dict[str, dict[str, object]] = {}
         self.guided_bem_widgets: dict[str, dict[str, object]] = {}
         self.bem_widgets: dict[str, dict[str, object]] = {}
@@ -146,6 +153,13 @@ class AthConfigStudio(tk.Tk):
         self.bem_polar_rows: list[dict[str, float]] = []
         self.optimizer_log_text: tk.Text | None = None
         self.optimizer_best_text: tk.Text | None = None
+        self.base_design_summary_text: tk.Text | None = None
+        self.build_verify_bem_text: tk.Text | None = None
+        self.verification_summary_text: tk.Text | None = None
+        self.optimize_base_conditions_text: tk.Text | None = None
+        self.optimize_constraints_text: tk.Text | None = None
+        self.optimize_search_space_text: tk.Text | None = None
+        self.results_overview_text: tk.Text | None = None
         self.opengl_preview: OpenGLPreviewHost | None = None
         self.preview_backend_var = tk.StringVar(value="預覽後端：Canvas")
         self.preview_yaw_deg = 32.0
@@ -161,6 +175,8 @@ class AthConfigStudio(tk.Tk):
         self._suspend_quick_sync = False
         self._quick_dirty = False
         self._quick_trace_tokens: list[tuple[tk.Variable, str]] = []
+        self._context_trace_tokens: list[tuple[tk.Variable, str]] = []
+        self._context_refresh_after_id: str | None = None
         self._active_controls_tab_id = ""
         self._bem_progress_running = False
         self._bem_progress_phase = "BEM 進度：閒置"
@@ -380,19 +396,13 @@ class AthConfigStudio(tk.Tk):
         self.control_tabs: dict[str, ttk.Frame] = {}
         self.tab_bodies: dict[str, ttk.Frame] = {}
         tab_titles = {
-            "QuickStart": "Quick Start",
-            "Guided": "Guided Setup",
-            "Global": "全域",
-            "Geometry": "幾何",
-            "Morph": "變形",
-            "Mesh": "網格",
-            "Simulation": "模擬",
-            "Output": "輸出",
-            "BEM": "BEM",
+            "QuickStart": "Base Design",
+            "BEM": "Build / Verify",
             "Optimize": "Optimize",
-            "Advanced": "進階",
+            "Guided": "Results",
+            "Advanced": "Advanced",
         }
-        for tab_name in ("QuickStart", "Guided", "Global", "Geometry", "Morph", "Mesh", "Simulation", "Output", "BEM", "Optimize", "Advanced"):
+        for tab_name in ("QuickStart", "BEM", "Optimize", "Guided", "Advanced"):
             scroll = ScrollableFrame(self.notebook)
             self.notebook.add(scroll, text=tab_titles[tab_name])
             self.control_tabs[tab_name] = scroll
@@ -500,6 +510,7 @@ class AthConfigStudio(tk.Tk):
         optimizer = self.optimizer_status_var.get().strip()
         group = self.group_status_var.get().replace("分群狀態：", "").strip()
         self.status_card_summary_var.set(f"預覽 {preview} | BEM {bem} | OPT {optimizer} | 分群 {group}")
+        self._request_context_refresh()
 
     def _format_elapsed_text(self, elapsed_sec: float) -> str:
         total_sec = max(0, int(elapsed_sec))
@@ -562,24 +573,63 @@ class AthConfigStudio(tk.Tk):
     def _toggle_status_card(self) -> None:
         self._set_status_card_collapsed(not self.status_card_collapsed.get())
 
-    def _build_sections(self) -> None:
-        container_rows = {tab: 0 for tab in self.tab_bodies}
-        self._build_quick_start_panel(self.tab_bodies["QuickStart"])
-        for tab_name, description, fields in FIELD_SECTIONS:
-            target = self.tab_bodies[tab_name]
-            card = ttk.LabelFrame(target, text=description, style="Card.TLabelframe", padding=14)
-            card.grid(row=container_rows[tab_name], column=0, sticky="ew", padx=14, pady=(14, 0))
-            card.columnconfigure(1, weight=1)
-            self._populate_card(card, fields, self.global_widgets if tab_name == "Global" else self.horn_widgets)
-            container_rows[tab_name] += 1
+    def _build_advanced_panel(self, target: ttk.Frame) -> None:
+        target.columnconfigure(0, weight=1)
 
+        intro = ttk.LabelFrame(target, text="Advanced / Expert Controls", style="Card.TLabelframe", padding=14)
+        intro.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
+        intro.columnconfigure(0, weight=1)
+        ttk.Label(
+            intro,
+            text=(
+                "這裡集中保留完整原始欄位，方便進階細調與相容既有流程。"
+                "日常設計建議先從 Base Design 進入；Build / Verify 與 Optimize 都會讀取目前這份正式狀態。"
+            ),
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w")
+
+        row = 1
+        for section_name, description, fields in FIELD_SECTIONS:
+            card = ttk.LabelFrame(target, text=section_name, style="Card.TLabelframe", padding=14)
+            card.grid(row=row, column=0, sticky="ew", padx=14, pady=(14, 0))
+            card.columnconfigure(1, weight=1)
+            ttk.Label(
+                card,
+                text=description,
+                style="Hint.TLabel",
+                justify="left",
+                wraplength=720,
+            ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
+            self._populate_card(card, fields, self.global_widgets if section_name == "Global" else self.horn_widgets, start_row=1)
+            row += 1
+
+        advanced_hint = ttk.LabelFrame(target, text="進階區說明", style="Card.TLabelframe", padding=14)
+        advanced_hint.grid(row=row, column=0, sticky="ew", padx=14, pady=(14, 18))
+        advanced_hint.columnconfigure(0, weight=1)
+        ttk.Label(
+            advanced_hint,
+            text=(
+                "右側工作區維持 3D 幾何、指向性、網格摘要、BEM 摘要、最佳化與設定文字預覽。"
+                "左側 Advanced 則保留完整原始欄位，避免主要操作頁被低頻參數淹沒。"
+            ),
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w")
+
+    def _build_sections(self) -> None:
         for body in self.tab_bodies.values():
             body.columnconfigure(0, weight=1)
 
-        self._build_preview_panel(self.workspace_tabs["Geometry3D"])
+        self._build_advanced_panel(self.tab_bodies["Advanced"])
+        self._build_quick_start_panel(self.tab_bodies["QuickStart"])
         self._build_bem_panel(self.tab_bodies["BEM"])
         self._build_optimizer_panel(self.tab_bodies["Optimize"])
-        self._build_guided_panel(self.tab_bodies["Guided"])
+        self._build_results_panel(self.tab_bodies["Guided"])
+
+        self._build_preview_panel(self.workspace_tabs["Geometry3D"])
         self._build_polar_panel(self.workspace_tabs["Polar"])
         self._build_mesh_info_panel(self.workspace_tabs["MeshInfo"])
         self._build_bem_summary_panel(self.workspace_tabs["Summary"])
@@ -598,55 +648,72 @@ class AthConfigStudio(tk.Tk):
         self.preview_text = self._make_dark_text(preview_card, height=22, wrap="none")
         self.preview_text.grid(row=1, column=0, sticky="nsew")
         self.preview_text.configure(state="disabled")
-
-        advanced_hint = ttk.LabelFrame(
-            self.tab_bodies["Advanced"],
-            text="進階區說明",
-            style="Card.TLabelframe",
-            padding=14,
-        )
-        advanced_hint.grid(row=container_rows["Advanced"], column=0, sticky="ew", padx=14, pady=(14, 18))
-        advanced_hint.columnconfigure(0, weight=1)
-        ttk.Label(
-            advanced_hint,
-            text="右側工作區已整合 3D 幾何、指向性、網格摘要、BEM 摘要與設定文字預覽。"
-                 "左側進階頁保留參數輸入，避免預覽區被擠壓。",
-            style="Hint.TLabel",
-            justify="left",
-            wraplength=720,
-        ).grid(row=0, column=0, sticky="w")
         self._bind_dependency_traces()
         self._bind_quick_traces()
+        self._bind_context_traces()
         self.refresh_dependency_states()
+        self._request_context_refresh()
 
     def _build_quick_start_panel(self, target: ttk.Frame) -> None:
         target.columnconfigure(0, weight=1)
 
-        intro = ttk.LabelFrame(target, text="Quick Start", style="Card.TLabelframe", padding=14)
+        intro = ttk.LabelFrame(target, text="Base Design", style="Card.TLabelframe", padding=14)
         intro.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
         intro.columnconfigure(0, weight=1)
         ttk.Label(
             intro,
-            text="這裡提供常用參數快速設定；進階參數仍可在其他分頁調整。",
+            text=(
+                "這裡不再只是 quick-start 縮寫表單，而是目前專案的正式基準設計頁。"
+                "這一頁的目前設計，就是後續 Build / Verify / Optimize 使用的基準條件。"
+            ),
             style="Hint.TLabel",
             justify="left",
             wraplength=720,
         ).grid(row=0, column=0, sticky="w")
 
-        row = 1
-        for title, description, fields in QUICK_FIELD_SECTIONS:
-            card = ttk.LabelFrame(target, text=title, style="Card.TLabelframe", padding=14)
-            card.grid(row=row, column=0, sticky="ew", padx=14, pady=(14, 0))
-            card.columnconfigure(1, weight=1)
-            ttk.Label(
-                card,
-                text=description,
-                style="Hint.TLabel",
-                justify="left",
-                wraplength=720,
-            ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
-            self._populate_card(card, fields, self.quick_widgets, start_row=1)
-            row += 1
+        summary_card = ttk.LabelFrame(target, text="Current Base Design", style="Card.TLabelframe", padding=14)
+        summary_card.grid(row=1, column=0, sticky="ew", padx=14, pady=(14, 0))
+        summary_card.columnconfigure(0, weight=1)
+        ttk.Label(
+            summary_card,
+            text=(
+                "Source of truth: 目前 GUI 的正式 horn + BEM state。"
+                " `collect_design_recipe()` 會從這些欄位組出 DesignRecipe，並供 Generate / BEM / Optimize 共用。"
+            ),
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+        self.base_design_summary_text = self._make_dark_text(summary_card, height=12, wrap="word")
+        self.base_design_summary_text.grid(row=1, column=0, sticky="ew")
+        self.base_design_summary_text.configure(state="disabled")
+
+        common_fields = tuple(field for _title, _description, fields in QUICK_FIELD_SECTIONS[:2] for field in fields)
+        common_card = ttk.LabelFrame(target, text="Common Geometry", style="Card.TLabelframe", padding=14)
+        common_card.grid(row=2, column=0, sticky="ew", padx=14, pady=(14, 0))
+        common_card.columnconfigure(1, weight=1)
+        ttk.Label(
+            common_card,
+            text="挑出最常改、最常確認的幾何欄位，直接綁到正式 horn state；更完整的原始欄位仍保留在 Advanced。",
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
+        self._populate_card(common_card, common_fields, self.base_design_widgets, start_row=1, shared_widget_map=self.horn_widgets)
+
+        action_card = ttk.LabelFrame(target, text="Recipe Actions", style="Card.TLabelframe", padding=14)
+        action_card.grid(row=3, column=0, sticky="ew", padx=14, pady=(14, 18))
+        action_card.columnconfigure(3, weight=1)
+        ttk.Button(action_card, text="Save Recipe", style="Tool.TButton", command=self.save_design_recipe).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(action_card, text="Load Recipe", style="Tool.TButton", command=self.load_design_recipe).grid(row=0, column=1, padx=(0, 8))
+        ttk.Button(action_card, text="Apply Sample", style="Tool.TButton", command=self.apply_sample_design).grid(row=0, column=2, padx=(0, 8))
+        ttk.Label(
+            action_card,
+            text="Recipe actions 會讀寫目前的正式設計狀態，不會建立另一份獨立 quick-state。",
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(10, 0))
 
     def _build_guided_panel(self, target: ttk.Frame) -> None:
         target.columnconfigure(0, weight=1)
@@ -784,38 +851,147 @@ class AthConfigStudio(tk.Tk):
 
     def _build_bem_panel(self, target: ttk.Frame) -> None:
         target.columnconfigure(0, weight=1)
-        target.rowconfigure(0, weight=1)
+        intro = ttk.LabelFrame(target, text="Build / Verify", style="Card.TLabelframe", padding=14)
+        intro.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
+        intro.columnconfigure(0, weight=1)
+        ttk.Label(
+            intro,
+            text="先確認目前 Base Design 能生成且能求解，再拿去做 Optimize。這一頁把 ATH 生成、mesh 檢查、BEM 執行與驗證摘要整合成一條流程。",
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w")
 
-        controls_card = ttk.LabelFrame(
-            target,
-            text="ATH GUI -> BEMPP 工作流",
-            style="Card.TLabelframe",
-            padding=14,
+        generation_fields = tuple(
+            spec
+            for _section_name, _description, fields in FIELD_SECTIONS
+            for spec in fields
+            if spec.key in {
+                "Mesh.Quadrants",
+                "Mesh.AngularSegments",
+                "Mesh.LengthSegments",
+                "Mesh.ThroatResolution",
+                "Mesh.MouthResolution",
+                "Output.STL",
+                "Output.MSH",
+                "Output.ABECProject",
+            }
         )
-        controls_card.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
+
+        generation_card = ttk.LabelFrame(target, text="ATH Generation", style="Card.TLabelframe", padding=14)
+        generation_card.grid(row=1, column=0, sticky="ew", padx=14, pady=(14, 0))
+        generation_card.columnconfigure(1, weight=1)
+        ttk.Label(
+            generation_card,
+            text="從目前 Base Design 產生 ATH cfg / mesh 輸出。這裡先確認當前檔案、輸出路徑與生成相關設定。",
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
+        toolbar = ttk.Frame(generation_card, style="Card.TFrame")
+        toolbar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 12))
+        toolbar.columnconfigure(5, weight=1)
+        ttk.Button(toolbar, text="儲存 ATH cfg", style="Tool.TButton", command=self.save_horn_config).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(toolbar, text="執行 ATH", style="Accent.TButton", command=self.run_ath).grid(row=0, column=1, padx=(0, 8))
+        ttk.Button(toolbar, text="更新文字預覽", style="Tool.TButton", command=self.refresh_preview).grid(row=0, column=2, padx=(0, 8))
+        ttk.Button(toolbar, text="載入最新輸出", style="Tool.TButton", command=self.load_latest_output_preview).grid(row=0, column=3, padx=(0, 8))
+        ttk.Button(toolbar, text="開啟目前預覽", style="Tool.TButton", command=self.open_current_preview_external).grid(row=0, column=4, padx=(0, 8))
+        ttk.Label(toolbar, textvariable=self.preview_status_var, style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        ttk.Label(toolbar, textvariable=self.output_dir_var, style="Hint.TLabel", wraplength=520, justify="left").grid(
+            row=1,
+            column=2,
+            columnspan=4,
+            sticky="e",
+            pady=(10, 0),
+        )
+        ttk.Label(generation_card, text="目前 ATH cfg", style="CardLabel.TLabel").grid(row=2, column=0, sticky="nw", padx=(0, 14), pady=(0, 8))
+        ttk.Label(generation_card, textvariable=self.current_cfg_var, style="Hint.TLabel", wraplength=720, justify="left").grid(
+            row=2,
+            column=1,
+            sticky="nw",
+            pady=(0, 8),
+        )
+        ttk.Label(generation_card, text="最新預覽", style="CardLabel.TLabel").grid(row=3, column=0, sticky="nw", padx=(0, 14), pady=(0, 8))
+        ttk.Label(generation_card, textvariable=self.preview_path_var, style="Hint.TLabel", wraplength=720, justify="left").grid(
+            row=3,
+            column=1,
+            sticky="nw",
+            pady=(0, 8),
+        )
+        self._populate_card(generation_card, generation_fields, {}, start_row=4, shared_widget_map=self.horn_widgets)
+
+        mesh_card = ttk.LabelFrame(target, text="Mesh Check", style="Card.TLabelframe", padding=14)
+        mesh_card.grid(row=2, column=0, sticky="ew", padx=14, pady=(14, 0))
+        mesh_card.columnconfigure(1, weight=1)
+        ttk.Label(
+            mesh_card,
+            text="確認目前 mesh 是否成功建立、群組是否合理，以及右側工作區是否已有可供檢查的 3D / mesh 摘要。",
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
+        mesh_toolbar = ttk.Frame(mesh_card, style="Card.TFrame")
+        mesh_toolbar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 12))
+        mesh_toolbar.columnconfigure(5, weight=1)
+        ttk.Button(mesh_toolbar, text="自動偵測網格", style="Tool.TButton", command=self.autofill_bem_mesh).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(mesh_toolbar, text="檢查網格", style="Tool.TButton", command=self.inspect_bem_mesh).grid(row=0, column=1, padx=(0, 8))
+        ttk.Button(mesh_toolbar, text="查看 3D 幾何", style="Tool.TButton", command=lambda: self._select_workspace_tab("Geometry3D")).grid(row=0, column=2, padx=(0, 8))
+        ttk.Button(mesh_toolbar, text="查看網格摘要", style="Tool.TButton", command=lambda: self._select_workspace_tab("MeshInfo")).grid(row=0, column=3, padx=(0, 8))
+        ttk.Label(mesh_card, text="Mesh 狀態", style="CardLabel.TLabel").grid(row=2, column=0, sticky="nw", padx=(0, 14), pady=(0, 8))
+        ttk.Label(mesh_card, textvariable=self.mesh_status_var, style="Hint.TLabel", wraplength=720, justify="left").grid(
+            row=2,
+            column=1,
+            sticky="nw",
+            pady=(0, 8),
+        )
+        ttk.Label(mesh_card, text="群組摘要", style="CardLabel.TLabel").grid(row=3, column=0, sticky="nw", padx=(0, 14), pady=(0, 8))
+        ttk.Label(mesh_card, textvariable=self.preview_group_var, style="Hint.TLabel", wraplength=720, justify="left").grid(
+            row=3,
+            column=1,
+            sticky="nw",
+            pady=(0, 8),
+        )
+
+        controls_card = ttk.LabelFrame(target, text="BEM Run", style="Card.TLabelframe", padding=14)
+        controls_card.grid(row=3, column=0, sticky="ew", padx=14, pady=(14, 0))
         controls_card.columnconfigure(0, weight=1)
+        ttk.Label(
+            controls_card,
+            text="目前 BEM backend、頻段、平面與結果狀態都集中在這裡。先在這裡確認可求解，再把同一份基準設計拿去最佳化。",
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 12))
 
         toolbar = ttk.Frame(controls_card, style="Card.TFrame")
-        toolbar.grid(row=0, column=0, sticky="ew", pady=(0, 14))
+        toolbar.grid(row=1, column=0, sticky="ew", pady=(0, 14))
         toolbar.columnconfigure(6, weight=1)
-        ttk.Button(toolbar, text="自動偵測網格", style="Tool.TButton", command=self.autofill_bem_mesh).grid(row=0, column=0, padx=(0, 8))
-        ttk.Button(toolbar, text="檢查網格", style="Tool.TButton", command=self.inspect_bem_mesh).grid(row=0, column=1, padx=(0, 8))
-        ttk.Button(toolbar, text="執行 BEM", style="Accent.TButton", command=self.run_bempp).grid(row=0, column=2, padx=(0, 8))
-        ttk.Button(toolbar, text="重新載入結果", style="Tool.TButton", command=self.load_bem_results).grid(row=0, column=3, padx=(0, 8))
-        ttk.Button(toolbar, text="開啟求解器日誌", style="Tool.TButton", command=self.open_bem_solver_log).grid(row=0, column=4, padx=(0, 8))
-        ttk.Label(toolbar, text="BEM 狀態：", style="Hint.TLabel").grid(row=1, column=0, sticky="w", pady=(10, 0))
-        ttk.Label(toolbar, textvariable=self.bem_status_var, style="Hint.TLabel").grid(row=1, column=1, columnspan=2, sticky="w", pady=(10, 0))
-        ttk.Label(toolbar, textvariable=self.bem_result_path_var, style="Hint.TLabel").grid(row=1, column=3, columnspan=4, sticky="e", pady=(10, 0))
-        ttk.Label(toolbar, textvariable=self.run_all_stage_var, style="Hint.TLabel").grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
-        ttk.Label(toolbar, textvariable=self.run_all_status_var, style="Hint.TLabel", wraplength=600, justify="left").grid(
-            row=2,
+        ttk.Button(toolbar, text="執行 BEM", style="Accent.TButton", command=self.run_bempp).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(toolbar, text="重新載入結果", style="Tool.TButton", command=self.load_bem_results).grid(row=0, column=1, padx=(0, 8))
+        ttk.Button(toolbar, text="開啟求解器日誌", style="Tool.TButton", command=self.open_bem_solver_log).grid(row=0, column=2, padx=(0, 8))
+        ttk.Button(toolbar, text="查看 BEM 摘要", style="Tool.TButton", command=lambda: self._select_workspace_tab("Summary")).grid(row=0, column=3, padx=(0, 8))
+        ttk.Button(toolbar, text="查看指向性", style="Tool.TButton", command=lambda: self._select_workspace_tab("Polar")).grid(row=0, column=4, padx=(0, 8))
+        ttk.Label(toolbar, textvariable=self.bem_status_var, style="Hint.TLabel").grid(row=1, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        ttk.Label(toolbar, textvariable=self.bem_result_path_var, style="Hint.TLabel", wraplength=620, justify="left").grid(
+            row=1,
             column=2,
             columnspan=5,
+            sticky="e",
+            pady=(10, 0),
+        )
+        ttk.Label(toolbar, textvariable=self.run_all_status_var, style="Hint.TLabel", wraplength=720, justify="left").grid(
+            row=2,
+            column=0,
+            columnspan=7,
             sticky="w",
             pady=(6, 0),
         )
 
-        inner_rows = 1
+        self.build_verify_bem_text = self._make_dark_text(controls_card, height=8, wrap="word")
+        self.build_verify_bem_text.grid(row=2, column=0, sticky="ew", pady=(0, 14))
+        self.build_verify_bem_text.configure(state="disabled")
+
+        inner_rows = 3
         for description, fields in BEM_FIELD_SECTIONS:
             card = ttk.LabelFrame(controls_card, text=description, style="Card.TLabelframe", padding=14)
             card.grid(row=inner_rows, column=0, sticky="ew", pady=(0, 14))
@@ -823,25 +999,94 @@ class AthConfigStudio(tk.Tk):
             self._populate_card(card, fields, self.bem_widgets)
             inner_rows += 1
 
+        summary_card = ttk.LabelFrame(target, text="Verification Summary", style="Card.TLabelframe", padding=14)
+        summary_card.grid(row=4, column=0, sticky="ew", padx=14, pady=(14, 18))
+        summary_card.columnconfigure(0, weight=1)
+        ttk.Label(
+            summary_card,
+            text="這裡整理目前 Base Design 是否已經可生成、可網格化、可求解，以及還有哪些關鍵警告需要先處理。",
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+        self.verification_summary_text = self._make_dark_text(summary_card, height=11, wrap="word")
+        self.verification_summary_text.grid(row=1, column=0, sticky="ew")
+        self.verification_summary_text.configure(state="disabled")
+
     def _build_optimizer_panel(self, target: ttk.Frame) -> None:
         target.columnconfigure(0, weight=1)
 
-        intro = ttk.LabelFrame(target, text="Optuna / Optimizer", style="Card.TLabelframe", padding=14)
+        intro = ttk.LabelFrame(target, text="Optimize", style="Card.TLabelframe", padding=14)
         intro.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
         intro.columnconfigure(0, weight=1)
         ttk.Label(
             intro,
             text=(
-                "這裡是 GUI 版最佳化控制入口。最佳化會重用目前 GUI 的 horn/global/BEM 狀態作為 base template，"
-                "再交給 headless runner 執行 trial。BEM backend / WSL / conda 設定仍以 BEM 分頁欄位為準。"
+                "這一頁不再只是一組 study 參數，而是完整的最佳化上下文頁。"
+                "先看目前基準條件、限制條件與 search space，再決定是否開始 study。"
             ),
             style="Hint.TLabel",
             justify="left",
             wraplength=720,
         ).grid(row=0, column=0, sticky="w")
 
-        action_card = ttk.LabelFrame(target, text="Study 控制", style="Card.TLabelframe", padding=14)
-        action_card.grid(row=1, column=0, sticky="ew", padx=14, pady=(14, 0))
+        base_card = ttk.LabelFrame(target, text="Optimization Base Conditions", style="Card.TLabelframe", padding=14)
+        base_card.grid(row=1, column=0, sticky="ew", padx=14, pady=(14, 0))
+        base_card.columnconfigure(0, weight=1)
+        ttk.Label(
+            base_card,
+            text=(
+                "Source: Current GUI Design State。Optimize 會從目前 GUI 欄位組出的 DesignRecipe、horn state、BEM state 開始，"
+                "不是從隱藏預設值開始。"
+            ),
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+        self.optimize_base_conditions_text = self._make_dark_text(base_card, height=12, wrap="word")
+        self.optimize_base_conditions_text.grid(row=1, column=0, sticky="ew")
+        self.optimize_base_conditions_text.configure(state="disabled")
+
+        constraint_fields = (*OPTIMIZER_OBJECTIVE_FIELDS, *OPTIMIZER_CONSTRAINT_FIELDS)
+        constraint_card = ttk.LabelFrame(target, text="Driver & Product Constraints", style="Card.TLabelframe", padding=14)
+        constraint_card.grid(row=2, column=0, sticky="ew", padx=14, pady=(14, 0))
+        constraint_card.columnconfigure(1, weight=1)
+        ttk.Label(
+            constraint_card,
+            text=(
+                "這裡整理單體與產品限制。若未提供明確 JSON / 包裝限制，GUI 會先顯示目前能從 recipe 保守推估的限制與 derived preview。"
+            ),
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 12))
+        self._populate_card(constraint_card, constraint_fields, self.optimizer_widgets, start_row=1)
+        derived_row = 1 + len(constraint_fields)
+        ttk.Label(
+            constraint_card,
+            text="Derived preview",
+            style="CardLabel.TLabel",
+        ).grid(row=derived_row, column=0, sticky="nw", padx=(0, 14), pady=(6, 0))
+        self.optimize_constraints_text = self._make_dark_text(constraint_card, height=11, wrap="word")
+        self.optimize_constraints_text.grid(row=derived_row, column=1, sticky="ew", pady=(6, 0))
+        self.optimize_constraints_text.configure(state="disabled")
+
+        search_card = ttk.LabelFrame(target, text="Search Space Preview", style="Card.TLabelframe", padding=14)
+        search_card.grid(row=3, column=0, sticky="ew", padx=14, pady=(14, 0))
+        search_card.columnconfigure(0, weight=1)
+        ttk.Label(
+            search_card,
+            text="清楚列出 fixed variables、optimized variables、bounds 與目前能說明的原因。若某些欄位因目前模式不啟用，也會在這裡標出。",
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+        self.optimize_search_space_text = self._make_dark_text(search_card, height=14, wrap="word")
+        self.optimize_search_space_text.grid(row=1, column=0, sticky="ew")
+        self.optimize_search_space_text.configure(state="disabled")
+
+        action_card = ttk.LabelFrame(target, text="Study Controls", style="Card.TLabelframe", padding=14)
+        action_card.grid(row=4, column=0, sticky="ew", padx=14, pady=(14, 18))
         action_card.columnconfigure(4, weight=1)
         ttk.Button(action_card, text="開始最佳化", style="Accent.TButton", command=self.run_optimizer_study).grid(row=0, column=0, padx=(0, 8))
         ttk.Button(action_card, text="完成當前 Trial 後停止", style="Tool.TButton", command=self.stop_optimizer_study).grid(row=0, column=1, padx=(0, 8))
@@ -857,14 +1102,56 @@ class AthConfigStudio(tk.Tk):
             sticky="w",
             pady=(8, 0),
         )
+        self._populate_card(action_card, OPTIMIZER_STUDY_FIELDS, self.optimizer_widgets, start_row=3)
 
-        row = 2
-        for description, fields in OPTIMIZER_FIELD_SECTIONS:
-            card = ttk.LabelFrame(target, text=description, style="Card.TLabelframe", padding=14)
-            card.grid(row=row, column=0, sticky="ew", padx=14, pady=(14, 0))
-            card.columnconfigure(1, weight=1)
-            self._populate_card(card, fields, self.optimizer_widgets)
-            row += 1
+    def _build_results_panel(self, target: ttk.Frame) -> None:
+        target.columnconfigure(0, weight=1)
+
+        intro = ttk.LabelFrame(target, text="Results", style="Card.TLabelframe", padding=14)
+        intro.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
+        intro.columnconfigure(0, weight=1)
+        ttk.Label(
+            intro,
+            text="右側工作區仍是主要結果顯示區；這一頁負責把常用結果頁與 workspace 動作整理成可導航的入口。",
+            style="Hint.TLabel",
+            justify="left",
+            wraplength=720,
+        ).grid(row=0, column=0, sticky="w")
+
+        nav_card = ttk.LabelFrame(target, text="Workspace Navigation", style="Card.TLabelframe", padding=14)
+        nav_card.grid(row=1, column=0, sticky="ew", padx=14, pady=(14, 0))
+        for column in range(3):
+            nav_card.columnconfigure(column, weight=1)
+        buttons = (
+            ("3D 幾何", "Geometry3D"),
+            ("指向性", "Polar"),
+            ("網格摘要", "MeshInfo"),
+            ("BEM 摘要", "Summary"),
+            ("最佳化", "Study"),
+            ("設定文字", "TextPreview"),
+        )
+        for index, (label, key) in enumerate(buttons):
+            ttk.Button(nav_card, text=label, style="Tool.TButton", command=lambda tab_key=key: self._select_workspace_tab(tab_key)).grid(
+                row=index // 3,
+                column=index % 3,
+                padx=6,
+                pady=6,
+                sticky="ew",
+            )
+
+        action_card = ttk.LabelFrame(target, text="Workspace Actions", style="Card.TLabelframe", padding=14)
+        action_card.grid(row=2, column=0, sticky="ew", padx=14, pady=(14, 0))
+        action_card.columnconfigure(2, weight=1)
+        ttk.Button(action_card, text="載入最新 workspace 結果", style="Tool.TButton", command=self.load_workspace_results).grid(row=0, column=0, padx=(0, 8))
+        ttk.Button(action_card, text="開啟最新 workspace", style="Tool.TButton", command=self.open_latest_workspace).grid(row=0, column=1, padx=(0, 8))
+        ttk.Button(action_card, text="載入最新輸出預覽", style="Tool.TButton", command=self.load_latest_output_preview).grid(row=0, column=2, padx=(0, 8), sticky="w")
+
+        summary_card = ttk.LabelFrame(target, text="Results Overview", style="Card.TLabelframe", padding=14)
+        summary_card.grid(row=3, column=0, sticky="ew", padx=14, pady=(14, 18))
+        summary_card.columnconfigure(0, weight=1)
+        self.results_overview_text = self._make_dark_text(summary_card, height=12, wrap="word")
+        self.results_overview_text.grid(row=0, column=0, sticky="ew")
+        self.results_overview_text.configure(state="disabled")
 
     def _build_optimizer_workspace_panel(self, target: ttk.Frame) -> None:
         target.columnconfigure(0, weight=1)
@@ -1133,6 +1420,7 @@ class AthConfigStudio(tk.Tk):
         horn_state = self.collect_horn_state()
         horn_rules = build_guided_field_states(horn_state)
         self.apply_field_states(self.horn_widgets, horn_rules, hide_irrelevant=False)
+        self.apply_field_states(self.base_design_widgets, horn_rules, hide_irrelevant=False)
         self.apply_field_states(
             self.guided_widgets,
             horn_rules,
@@ -1185,6 +1473,360 @@ class AthConfigStudio(tk.Tk):
             if isinstance(variable, tk.Variable):
                 token = variable.trace_add("write", self._on_quick_field_changed)
                 self._quick_trace_tokens.append((variable, token))
+
+    def _on_context_field_changed(self, *_args: object) -> None:
+        self._request_context_refresh()
+
+    def _bind_context_traces(self) -> None:
+        for widget_map in (self.global_widgets, self.horn_widgets, self.bem_widgets, self.optimizer_widgets):
+            for data in widget_map.values():
+                variable = data.get("var")
+                if isinstance(variable, tk.Variable):
+                    token = variable.trace_add("write", self._on_context_field_changed)
+                    self._context_trace_tokens.append((variable, token))
+
+    def _request_context_refresh(self) -> None:
+        if self._context_refresh_after_id is not None:
+            return
+        self._context_refresh_after_id = self.after(80, self._refresh_context_panels)
+
+    def _format_number(self, value: object | None, *, unit: str = "", digits: int = 1) -> str:
+        if value is None:
+            return "-"
+        text = str(value).strip()
+        if not text:
+            return "-"
+        try:
+            numeric = float(text)
+        except Exception:
+            return f"{text}{unit}"
+        if abs(numeric - round(numeric)) < 1.0e-9:
+            base = str(int(round(numeric)))
+        else:
+            base = f"{numeric:.{digits}f}"
+        return f"{base}{unit}"
+
+    def _format_bool_text(self, value: object) -> str:
+        return "yes" if bool(value) else "no"
+
+    def _status_line(self, ok: bool, label: str, detail: str) -> str:
+        marker = "[OK]" if ok else "[!]"
+        return f"{marker} {label}: {detail}"
+
+    def _friendly_bounds_source(self, source: object, reason: object | None = None) -> str:
+        source_text = str(source or "").strip()
+        mapping = {
+            "driver_profile.fixed_throat": "fixed because tied to driver throat",
+            "driver_type": "fixed because current driver type fixes source mode",
+            "derived_or_base": "bounded by derived geometry limits and current base recipe",
+            "derived_or_target": "bounded by target BW / recommended coverage",
+            "derived_or_product": "bounded by product and derived mouth limits",
+            "derived_from_mouth": "bounded by current mouth geometry",
+            "base_recipe_fallback": "bounded conservatively around current base recipe",
+        }
+        if source_text in mapping:
+            return mapping[source_text]
+        reason_text = str(reason or "").strip()
+        if reason_text:
+            return reason_text
+        return source_text or "bounded conservatively from current context"
+
+    def _resolve_optimizer_preview_context(self) -> dict[str, object]:
+        from optimizer.design_space import build_design_space, build_initial_seed_params
+        from optimizer.driver_profile import (
+            ProductConstraints,
+            infer_driver_profile_from_recipe,
+            infer_product_constraints_from_recipe,
+            load_driver_profile,
+        )
+
+        optimizer_state = self.collect_optimizer_state()
+        recipe = self.collect_design_recipe()
+
+        def _as_optional_float(key: str) -> float | None:
+            text = str(optimizer_state.get(key, "")).strip()
+            if not text:
+                return None
+            return float(text)
+
+        target_bw_h = _as_optional_float("OPT.TargetBWH")
+        target_bw_v = _as_optional_float("OPT.TargetBWV")
+        inferred_constraints = infer_product_constraints_from_recipe(
+            recipe,
+            target_bw_h_deg=target_bw_h,
+            target_bw_v_deg=target_bw_v,
+        )
+        constraints = replace(
+            inferred_constraints,
+            max_baffle_width_mm=_as_optional_float("OPT.MaxBaffleWidth") or inferred_constraints.max_baffle_width_mm,
+            max_baffle_height_mm=_as_optional_float("OPT.MaxBaffleHeight") or inferred_constraints.max_baffle_height_mm,
+            max_depth_mm=_as_optional_float("OPT.MaxDepth") or inferred_constraints.max_depth_mm,
+            min_wall_thickness_mm=_as_optional_float("OPT.MinWallThickness") or inferred_constraints.min_wall_thickness_mm,
+            target_bw_h_deg=target_bw_h if target_bw_h is not None else inferred_constraints.target_bw_h_deg,
+            target_bw_v_deg=target_bw_v if target_bw_v is not None else inferred_constraints.target_bw_v_deg,
+            target_low_freq_hz=_as_optional_float("OPT.TargetLowFreq") or inferred_constraints.target_low_freq_hz,
+            target_high_freq_hz=_as_optional_float("OPT.TargetHighFreq") or inferred_constraints.target_high_freq_hz,
+        )
+
+        profile_path_text = str(optimizer_state.get("OPT.DriverProfilePath", "")).strip()
+        if profile_path_text:
+            profile_path = Path(profile_path_text).expanduser().resolve()
+            driver_profile = load_driver_profile(profile_path)
+            driver_source = f"loaded from {profile_path}"
+        else:
+            profile_path = None
+            driver_profile = infer_driver_profile_from_recipe(recipe)
+            driver_source = "inferred from current recipe"
+
+        design_space = build_design_space(driver_profile, constraints, base_recipe=recipe)
+        seed_params = build_initial_seed_params(driver_profile, constraints)
+        return {
+            "recipe": recipe,
+            "optimizer_state": optimizer_state,
+            "driver_profile": driver_profile,
+            "driver_source": driver_source,
+            "driver_profile_path": profile_path,
+            "product_constraints": constraints,
+            "design_space": design_space,
+            "seed_params": seed_params,
+        }
+
+    def _build_base_design_summary_text(self) -> str:
+        recipe = self.collect_design_recipe()
+        errors = recipe.validate()
+        lines = [
+            "This page is the baseline snapshot for Generate / BEM / Optimize.",
+            "",
+            "Current Base Design",
+            f"- Case: {recipe.case_name}",
+            f"- Throat: {self._format_number(recipe.throat_diameter, unit=' mm')}",
+            f"- Horn length: {self._format_number(recipe.horn_length, unit=' mm')}",
+            f"- Coverage target: {self._format_number(recipe.coverage_angle, unit=' deg')} (single-angle recipe field)",
+            f"- Mouth: {self._format_number(recipe.mouth_width, unit=' mm')} x {self._format_number(recipe.mouth_height, unit=' mm')}",
+            f"- Corner radius: {self._format_number(recipe.mouth_corner_radius, unit=' mm')}",
+            f"- BEM band: {self._format_number(recipe.bem_f1, unit=' Hz')} -> {self._format_number(recipe.bem_f2, unit=' Hz')} ({recipe.bem_num_freq} pts)",
+            f"- Observation plane: {recipe.observation_plane}",
+            f"- Symmetry: {self._format_bool_text(recipe.symmetry_enabled)} {recipe.symmetry_planes if recipe.symmetry_planes else ''}".rstrip(),
+            f"- Current cfg path: {self.current_cfg_var.get()}",
+        ]
+        if errors:
+            lines.extend(["", "Recipe validation", *[f"- {error}" for error in errors]])
+        return "\n".join(lines)
+
+    def _build_build_verify_bem_text(self) -> str:
+        ath_state = self.collect_effective_horn_state()
+        bem_state = self.collect_effective_bem_state(ath_state)
+        bem_runtime = build_bem_runtime_settings(bem_state, ath_state)
+        lines = [
+            "Current BEM context",
+            f"- Enabled: {self._format_bool_text(bem_runtime.get('enabled', False))}",
+            f"- Backend: {bem_runtime.get('backend', '-')}",
+            f"- Mesh source: {bem_runtime.get('mesh_source_mode', '-')}",
+            f"- Group mode: {bem_runtime.get('group_mode', '-')}",
+            f"- Frequency: {self._format_number(bem_state.get('BEM.F1'), unit=' Hz')} -> {self._format_number(bem_state.get('BEM.F2'), unit=' Hz')} ({bem_state.get('BEM.NumFreq', '-') } pts)",
+            f"- Plane: {bem_state.get('BEM.Plane', '-')} | Symmetry: {bem_state.get('BEM.SymmetryMode', '-')}",
+            f"- Mic distance: {self._format_number(bem_state.get('BEM.MicDistance'), unit=' m', digits=2)}",
+            f"- Result status: {self.bem_status_var.get()}",
+        ]
+        return "\n".join(lines)
+
+    def _build_verification_summary_text(self) -> str:
+        recipe = self.collect_design_recipe()
+        errors = recipe.validate()
+        preview_status = self.preview_status_var.get()
+        mesh_status = self.mesh_status_var.get()
+        bem_status = self.bem_status_var.get()
+        ath_ok = ("已載入" in preview_status) or (self.last_generated_preview_file is not None)
+        mesh_ok = bool(mesh_status.strip()) and mesh_status not in {"尚未指定", "BEM automation 關閉"}
+        bem_ok = any(token in bem_status for token in ("完成", "done", "Done"))
+
+        warnings: list[str] = []
+        if not self.current_horn_path.get().strip():
+            warnings.append("目前 ATH cfg 尚未另存為檔案；若要追蹤輸出與 workspace，建議先儲存。")
+        if errors:
+            warnings.append("Base Design 仍有 recipe validation 問題，建議先修正後再執行。")
+        if not ath_ok:
+            warnings.append("尚未確認可生成的 ATH 輸出；請先執行 ATH 或載入最新輸出。")
+        if not mesh_ok:
+            warnings.append("尚未確認可用 mesh。若 BEM 需要 `latest_ath_output`，請先執行 ATH 並確認 `.msh` 已產生。")
+        if not bem_ok:
+            warnings.append("尚未完成 BEM 求解；請先確認 BEM 設定與群組映射。")
+
+        lines = [
+            self._status_line(not errors, "Recipe validity", "current GUI state can compile into DesignRecipe" if not errors else "needs fixes"),
+            self._status_line(ath_ok, "ATH generation", preview_status),
+            self._status_line(mesh_ok, "Mesh availability", mesh_status),
+            self._status_line(bem_ok, "BEM solve", bem_status),
+            "",
+            "Warnings / next checks",
+        ]
+        lines.extend(f"- {warning}" for warning in warnings) if warnings else lines.append("- No blocking warning detected from current UI snapshot.")
+        return "\n".join(lines)
+
+    def _build_optimize_base_conditions_text(self, preview_context: dict[str, object] | None, preview_error: str | None) -> str:
+        recipe = self.collect_design_recipe()
+        ath_state = sanitize_ath_state(self.collect_horn_state(normalize_locked=True))
+        bem_runtime = build_bem_runtime_settings(sanitize_bem_state(self.collect_bem_state(), ath_state), ath_state)
+        optimizer_state = self.collect_optimizer_state()
+        lines = [
+            "Source: Current GUI Design State",
+            "- `OptimizationController.start_from_ui()` snapshots current recipe, horn state, BEM state, and global state when you press Start.",
+            "",
+            "Base recipe snapshot",
+            f"- Case: {recipe.case_name}",
+            f"- Throat / length / coverage: {self._format_number(recipe.throat_diameter, unit=' mm')} / {self._format_number(recipe.horn_length, unit=' mm')} / {self._format_number(recipe.coverage_angle, unit=' deg')}",
+            f"- Mouth / corner: {self._format_number(recipe.mouth_width, unit=' mm')} x {self._format_number(recipe.mouth_height, unit=' mm')} / {self._format_number(recipe.mouth_corner_radius, unit=' mm')}",
+            f"- BEM band: {self._format_number(recipe.bem_f1, unit=' Hz')} -> {self._format_number(recipe.bem_f2, unit=' Hz')} ({recipe.bem_num_freq} pts)",
+            f"- Observation plane: {recipe.observation_plane}",
+            "",
+            "BEM / global context",
+            f"- Backend: {bem_runtime.get('backend', '-')}",
+            f"- Study planes: {optimizer_state.get('OPT.Planes', 'XZ+YZ')}",
+            f"- Output root: {self.collect_global_state().get('OutputRootDir', '') or '(default project path)'}",
+            f"- Enqueue base recipe: {self._format_bool_text(optimizer_state.get('OPT.EnqueueBase', True))}",
+        ]
+        if preview_context is not None:
+            seed = dict(preview_context.get("seed_params", {}))
+            lines.extend(
+                [
+                    "",
+                    "Also prepared for the study",
+                    f"- Driver-aware initial seed horn length: {self._format_number(seed.get('horn_length'), unit=' mm')}",
+                    f"- Driver-aware initial seed mouth: {self._format_number(seed.get('mouth_width'), unit=' mm')} x {self._format_number(seed.get('mouth_height'), unit=' mm')}",
+                ]
+            )
+        if preview_error:
+            lines.extend(["", f"Constraint/search preview error: {preview_error}"])
+        return "\n".join(lines)
+
+    def _build_constraints_preview_text(self, preview_context: dict[str, object] | None, preview_error: str | None) -> str:
+        if preview_context is None:
+            return f"Unable to resolve driver/product constraints preview.\n- {preview_error or 'unknown error'}"
+        driver_profile = preview_context["driver_profile"]
+        product_constraints = preview_context["product_constraints"]
+        design_space = preview_context["design_space"]
+        derived = design_space.derived
+        lines = [
+            "Driver profile",
+            f"- Source: {preview_context.get('driver_source', '-')}",
+            f"- ID / name: {driver_profile.driver_id} / {driver_profile.name}",
+            f"- Type: {driver_profile.driver_type}",
+            f"- Throat: {self._format_number(driver_profile.throat_diameter_mm, unit=' mm')}",
+            f"- Exit angle: {self._format_number(driver_profile.exit_angle_deg, unit=' deg')}",
+            f"- Mounting flange: {self._format_number(driver_profile.mounting_flange_diameter_mm, unit=' mm')}",
+            f"- Preferred max coverage: {self._format_number(driver_profile.preferred_max_coverage_deg, unit=' deg')}",
+            "",
+            "Product constraints",
+            f"- Max baffle: {self._format_number(product_constraints.max_baffle_width_mm, unit=' mm')} x {self._format_number(product_constraints.max_baffle_height_mm, unit=' mm')}",
+            f"- Max depth: {self._format_number(product_constraints.max_depth_mm, unit=' mm')}",
+            f"- Min wall thickness: {self._format_number(product_constraints.min_wall_thickness_mm, unit=' mm')}",
+            f"- Target BW H / V: {self._format_number(product_constraints.target_bw_h_deg, unit=' deg')} / {self._format_number(product_constraints.target_bw_v_deg, unit=' deg')}",
+            f"- Target low / high: {self._format_number(product_constraints.target_low_freq_hz, unit=' Hz')} / {self._format_number(product_constraints.target_high_freq_hz, unit=' Hz')}",
+            "",
+            "Derived preview",
+            f"- Fixed throat: {self._format_number(derived.fixed_throat_diameter_mm, unit=' mm')}",
+            f"- Mouth min: {self._format_number(derived.min_mouth_width_mm, unit=' mm')} x {self._format_number(derived.min_mouth_height_mm, unit=' mm')}",
+            f"- Mouth max: {self._format_number(derived.max_mouth_width_mm, unit=' mm')} x {self._format_number(derived.max_mouth_height_mm, unit=' mm')}",
+            f"- Horn length min / max: {self._format_number(derived.min_horn_length_mm, unit=' mm')} / {self._format_number(derived.max_horn_length_mm, unit=' mm')}",
+            f"- Corner radius max: {self._format_number(derived.max_corner_radius_mm, unit=' mm')}",
+            f"- Recommended coverage H: {derived.recommended_coverage_h_range_deg or '-'}",
+            f"- Recommended coverage V: {derived.recommended_coverage_v_range_deg or '-'}",
+        ]
+        if derived.notes:
+            lines.extend(["", "Notes", *[f"- {note}" for note in derived.notes[:6]]])
+        return "\n".join(lines)
+
+    def _build_search_space_preview_text(self, preview_context: dict[str, object] | None, preview_error: str | None) -> str:
+        if preview_context is None:
+            return f"Unable to build search-space preview.\n- {preview_error or 'unknown error'}"
+        design_space = preview_context["design_space"]
+        seed_params = dict(preview_context.get("seed_params", {}))
+        lines = ["Fixed variables"]
+        fixed_vars = design_space.fixed_variables()
+        if fixed_vars:
+            for name, variable in fixed_vars.items():
+                lines.append(
+                    f"- {name}: {variable.fixed_value} | {self._friendly_bounds_source(variable.metadata.get('reason'), variable.metadata.get('activation'))}"
+                )
+        else:
+            lines.append("- (none)")
+
+        lines.extend(["", "Optimized variables"])
+        active_rows = [
+            (name, variable)
+            for name, variable in design_space.active_variables().items()
+            if variable.kind != "fixed"
+        ]
+        if active_rows:
+            for name, variable in active_rows:
+                if variable.kind == "categorical":
+                    bound_text = f"choices={variable.choices or []}"
+                else:
+                    bound_text = f"[{self._format_number(variable.low)} .. {self._format_number(variable.high)}]"
+                lines.append(
+                    f"- {name}: {bound_text} | {self._friendly_bounds_source(variable.metadata.get('bounds_source'), variable.metadata.get('reason'))}"
+                )
+        else:
+            lines.append("- (none)")
+
+        inactive_rows = [
+            (name, variable)
+            for name, variable in design_space.variables.items()
+            if not variable.active and variable.kind != "fixed"
+        ]
+        lines.extend(["", "Inactive / compatibility-gated"])
+        if inactive_rows:
+            for name, variable in inactive_rows:
+                lines.append(
+                    f"- {name}: inactive | {self._friendly_bounds_source(variable.metadata.get('activation'), variable.metadata.get('reason'))}"
+                )
+        else:
+            lines.append("- (none)")
+
+        lines.extend(["", "Driver-aware initial seed"])
+        if seed_params:
+            for key, value in sorted(seed_params.items()):
+                lines.append(f"- {key}: {value}")
+        return "\n".join(lines)
+
+    def _build_results_overview_text(self) -> str:
+        lines = [
+            "Current result pointers",
+            f"- Preview: {self.preview_status_var.get()}",
+            f"- Preview file: {self.preview_path_var.get()}",
+            f"- Mesh: {self.mesh_status_var.get()}",
+            f"- BEM: {self.bem_status_var.get()}",
+            f"- BEM result: {self.bem_result_path_var.get()}",
+            f"- Optimize: {self.optimizer_status_var.get()}",
+            f"- Study dir: {self.optimizer_study_dir_var.get()}",
+            f"- Workflow: {self.run_all_stage_var.get()} | {self.run_all_status_var.get()}",
+            f"- Workspace: {self.run_all_workspace_var.get()}",
+            "",
+            "Use the buttons above to jump to the corresponding workspace tab on the right.",
+        ]
+        return "\n".join(lines)
+
+    def _refresh_context_panels(self) -> None:
+        self._context_refresh_after_id = None
+        preview_context: dict[str, object] | None = None
+        preview_error: str | None = None
+        try:
+            preview_context = self._resolve_optimizer_preview_context()
+        except Exception as exc:
+            preview_error = str(exc)
+
+        updates: list[tuple[tk.Text | None, str]] = [
+            (self.base_design_summary_text, self._build_base_design_summary_text()),
+            (self.build_verify_bem_text, self._build_build_verify_bem_text()),
+            (self.verification_summary_text, self._build_verification_summary_text()),
+            (self.optimize_base_conditions_text, self._build_optimize_base_conditions_text(preview_context, preview_error)),
+            (self.optimize_constraints_text, self._build_constraints_preview_text(preview_context, preview_error)),
+            (self.optimize_search_space_text, self._build_search_space_preview_text(preview_context, preview_error)),
+            (self.results_overview_text, self._build_results_overview_text()),
+        ]
+        for widget, text in updates:
+            if widget is not None:
+                self._set_text_widget(widget, text)
 
     def sync_quick_to_horn(self) -> None:
         if not self.quick_widgets:
@@ -1303,6 +1945,7 @@ class AthConfigStudio(tk.Tk):
         self.clear_optimizer_log()
         self.append_optimizer_log("尚未開始最佳化。")
         self.set_optimizer_best_text("尚未產生任何最佳 trial。")
+        self._request_context_refresh()
 
     def _resolve_current_output_dir(self) -> Path | None:
         cfg_path = self.current_horn_path.get().strip()
@@ -1359,6 +2002,7 @@ class AthConfigStudio(tk.Tk):
                     mesh_file = str(guessed_mesh) if guessed_mesh is not None else ""
                 self.mesh_status_var.set(mesh_file or "尚未指定")
         self._refresh_status_card_summary()
+        self._request_context_refresh()
 
     def _format_group_summary(self, detected_groups: list[int], *, group_source: str, count_map: dict[str, int]) -> str:
         if not detected_groups:
@@ -1720,6 +2364,12 @@ class AthConfigStudio(tk.Tk):
         self.status_var.set("已將 Recipe 套用到目前欄位。")
         self._update_runtime_status()
 
+    def apply_sample_design(self) -> None:
+        self.apply_horn_state(default_horn_state())
+        self.apply_bem_state(default_bem_state())
+        self.status_var.set("已套用內建 sample design 到目前正式狀態。")
+        self._update_runtime_status()
+
     def run_all_from_current_mode(self) -> None:
         if self._quick_dirty:
             self.sync_quick_to_horn()
@@ -1841,6 +2491,9 @@ class AthConfigStudio(tk.Tk):
         if self._bem_progress_after_id is not None:
             self.after_cancel(self._bem_progress_after_id)
             self._bem_progress_after_id = None
+        if self._context_refresh_after_id is not None:
+            self.after_cancel(self._context_refresh_after_id)
+            self._context_refresh_after_id = None
         if hasattr(self, "optimization_controller") and self.optimization_controller is not None:
             try:
                 self.optimization_controller.shutdown()
