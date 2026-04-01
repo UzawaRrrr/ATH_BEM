@@ -1,0 +1,32 @@
+[bem_solver] Loading job from /mnt/e/pythonGATH/ath-2025-06/projects/Autima_1_8/runs/20260401_050334/bempp/plane_xz/job.json
+
+[bem_solver] Mesh ready: 807 vertices, 1205 triangles, 3 active groups.
+[bem_solver] Source groups: [2]
+[bem_solver] Wall groups: [1, 3]
+[bem_solver] Boundary coverage: source_area=1.171717e-04 m^2 (0.1%), wall_area=2.210805e-01 m^2 (99.9%).
+
+   result = solve_exterior_velocity_bc(job, prepared_mesh)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/e/pythonGATH/ath-2025-06/bem_solver/solver_core.py", line 114, in solve_exterior_velocity_bc
+    return solve_exterior_velocity_bc_with_symmetry(job, prepared_mesh)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/e/pythonGATH/ath-2025-06/bem_solver/solver_core.py", line 238, in solve_exterior_velocity_bc_with_symmetry
+    base_grid = bempp_cl.api.import_grid(str(prepared_mesh.grid_file))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/uzawar/venvs/bempp-wsl/lib/python3.12/site-packages/bempp_cl/api/grid/io.py", line 36, in import_grid
+    return Grid(vertices, elements, domain_indices=domain_indices)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/uzawar/venvs/bempp-wsl/lib/python3.12/site-packages/bempp_cl/helpers.py", line 23, in timed_fun
+    res = fun(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^
+  File "/home/uzawar/venvs/bempp-wsl/lib/python3.12/site-packages/bempp_cl/api/grid/grid.py", line 60, in __init__
+    self._compute_geometric_quantities()
+  File "/home/uzawar/venvs/bempp-wsl/lib/python3.12/site-packages/bempp_cl/api/grid/grid.py", line 585, in _compute_geometric_quantities
+    jac_transpose_jac_inv = _np.linalg.inv(jac_transpose_jac)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/uzawar/venvs/bempp-wsl/lib/python3.12/site-packages/numpy/linalg/_linalg.py", line 648, in inv
+    ainv = _umath_linalg.inv(a, signature=signature)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/uzawar/venvs/bempp-wsl/lib/python3.12/site-packages/numpy/linalg/_linalg.py", line 145, in _raise_linalgerror_singular
+    raise LinAlgError("Singular matrix")
+numpy.linalg.LinAlgError: Singular matrix

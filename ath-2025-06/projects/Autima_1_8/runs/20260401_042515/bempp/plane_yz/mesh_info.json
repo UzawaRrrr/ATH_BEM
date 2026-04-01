@@ -1,0 +1,71 @@
+{
+  "mesh_file": "E:/pythonGATH/ath-2025-06/projects/Autima_1_8/runs/20260401_042515/ath/horn/ABEC_FreeStanding/horn.msh",
+  "group_source": "gmsh:physical",
+  "detected_groups": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "active_groups": [
+    1,
+    2,
+    3
+  ],
+  "element_count_per_group": {
+    "1": 376,
+    "2": 8,
+    "3": 765,
+    "4": 155
+  },
+  "active_element_count_per_group": {
+    "1": 376,
+    "2": 8,
+    "3": 765
+  },
+  "bbox": [
+    0.0,
+    0.276,
+    0.0,
+    0.255,
+    0.0,
+    0.194164
+  ],
+  "mesh_dimension": 2,
+  "warnings": [
+    "Ignoring groups from boundary import: [4]"
+  ],
+  "vertices": 696,
+  "elements": 1149,
+  "total_area_m2": 0.22711744898231986,
+  "area_per_group_m2": {
+    "1": 0.07259643280624258,
+    "2": 0.00011546016018096742,
+    "3": 0.15440555601589623
+  },
+  "boundary_edge_count": 87,
+  "nonmanifold_edge_count": 0,
+  "connected_component_count": 1,
+  "boundary_role_diagnostics": {
+    "available_groups": [
+      1,
+      2,
+      3
+    ],
+    "source_groups_present": [
+      2
+    ],
+    "wall_groups_present": [
+      1,
+      3
+    ],
+    "source_area_m2": 0.00011546016018096742,
+    "wall_area_m2": 0.2270019888221388,
+    "total_area_m2": 0.22711744898231986,
+    "source_area_ratio": 0.0005083720370157711,
+    "wall_area_ratio": 0.9994916279629837,
+    "boundary_edge_count": 87,
+    "nonmanifold_edge_count": 0,
+    "connected_component_count": 1
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "ath_ok": true,
+  "bem_ok": false,
+  "post_ok": false,
+  "mesh_ok": true,
+  "geometry_ok": true,
+  "self_intersection": false,
+  "mesh_quality_ok": true,
+  "exit_code": 1,
+  "notes": [
+    "BEM plane YZ failed with exit code 1."
+  ]
+}

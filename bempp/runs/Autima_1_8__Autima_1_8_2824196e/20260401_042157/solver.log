@@ -1,0 +1,11 @@
+[bem_solver] Loading job from /mnt/e/pythonGATH/bempp/runs/Autima_1_8__Autima_1_8_2824196e/20260401_042157/job.json
+
+[bem_solver] Mesh ready: 626 vertices, 1041 triangles, 3 active groups.
+[bem_solver] Source groups: [2]
+[bem_solver] Wall groups: [1, 3]
+[bem_solver] Boundary coverage: source_area=1.158047e-04 m^2 (0.1%), wall_area=1.917324e-01 m^2 (99.9%).
+
+
+
+
+[bem_solver] Solve completed successfully.

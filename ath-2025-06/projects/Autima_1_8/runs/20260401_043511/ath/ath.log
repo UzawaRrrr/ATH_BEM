@@ -1,0 +1,31 @@
+Info    : Running 'E:\pythonGATH\.venv\Scripts\gmsh bem_mesh.geo -' [Gmsh 4.15.1, 1 node, max. 1 thread]
+Info    : Started on Wed Apr 01 04:35:11 2026
+Info    : Reading 'bem_mesh.geo'...
+Info    : Running 'E:\pythonGATH\.venv\Scripts\gmsh mesh.geo -' [Gmsh 4.15.1, 1 node, max. 1 thread]
+Info    : Started on Wed Apr 01 04:35:12 2026
+Info    : Reading 'mesh.geo'...
+
+-destination directory: E:\pythonGATH\ath-2025-06\projects\Autima_1_8\runs\20260401_043511\ath\horn
+-calculating profiles
+-morphing to rectangle
+-morph: adding -112.236 mm in width
+-morph: adding -86.373 mm in height
+-fixed length: 194.926 mm
+-stretched to boundary: dx=111.98 dy=86.8558
+-stretched to boundary: dx=0 dy=0
+Maximum radius: 373.624 mm (747.249 mm diameter)
+-created directory E:\pythonGATH\ath-2025-06\projects\Autima_1_8\runs\20260401_043511\ath\horn\ABEC_FreeStanding
+-writing ABEC project
+-writing geo file bem_mesh.geo
+-average mesh throat angle: 0.000 deg
+-using flat driving
+-enclosure dimensions: 606 x 522 x 160 mm
+-running 'E:\pythonGATH\.venv\Scripts\python.exe E:\pythonGATH\.venv\Scripts\gmsh bem_mesh.geo -'
+-running 'E:\pythonGATH\.venv\Scripts\python.exe E:\pythonGATH\.venv\Scripts\gmsh mesh.geo -'
+Done.
+
+Coverage angle at 0 deg:     26.663 deg
+Coverage angle at 90 deg:    21.313 deg
+
+Device width x height = 585.45 x 500.68 mm (23.049 x 19.712")
+Device length =         194.93 mm (7.674")

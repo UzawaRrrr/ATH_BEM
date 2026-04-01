@@ -1,91 +1,70 @@
-"""Headless scoring helpers for Optuna-driven ATH/BEM optimization."""
+"""Headless scoring helpers for Optuna-driven ATH/BEM optimization.
 
-from .case_result import CaseArtifacts, CaseResult, CaseStatus, normalize_path
-from .design_space import DesignSpace, DesignVariable, build_default_baseline_recipe, build_design_space, build_initial_seed_params
-from .driver_profile import (
-    DerivedDriverConstraints,
-    DriverProfile,
-    ProductConstraints,
-    derive_driver_constraints,
-    dump_driver_profile,
-    load_driver_profile,
-)
-from .feasibility import (
-    FeasibilityIssue,
-    FeasibilityResult,
-    feasibility_penalty,
-    merge_feasibility_results,
-    validate_params_against_design_space,
-    validate_recipe_against_driver,
-)
-from .objective import evaluate_objective, objective_from_result_bundle, optuna_objective_wrapper
-from .result_bridge import (
-    case_result_to_score_inputs,
-    emit_optimizer_payload,
-    emit_optimizer_status_json,
-    load_from_optimizer_payload,
-    load_geometry_status,
-    load_polar_data,
-)
-from .score_defaults import (
-    DEFAULT_COMPONENT_NORMALIZERS,
-    DEFAULT_HOM_PROXY_WEIGHTS,
-    DEFAULT_SCORE_WEIGHTS,
-    DEFAULT_STAGE_FACTORS,
-    build_default_objective_config,
-)
-from .score_types import GeometryStatus, HomProxyWeights, ObjectiveConfig, PolarData, ScoreBundle, ScoreWeights
+This package stays import-light on purpose: solver-side code may import
+submodules such as `optimizer.result_bridge` inside WSL or other headless
+Python environments that do not have GUI dependencies like `tkinter`.
+"""
 
-__all__ = [
-    "DEFAULT_COMPONENT_NORMALIZERS",
-    "DEFAULT_HOM_PROXY_WEIGHTS",
-    "DEFAULT_SCORE_WEIGHTS",
-    "DEFAULT_STAGE_FACTORS",
-    "CaseArtifacts",
-    "CaseResult",
-    "CaseStatus",
-    "DerivedDriverConstraints",
-    "DesignSpace",
-    "DesignVariable",
-    "DriverProfile",
-    "FeasibilityIssue",
-    "FeasibilityResult",
-    "GeometryStatus",
-    "HeadlessCaseRunner",
-    "HomProxyWeights",
-    "ObjectiveConfig",
-    "PolarData",
-    "ProductConstraints",
-    "ScoreBundle",
-    "ScoreWeights",
-    "build_default_objective_config",
-    "build_default_baseline_recipe",
-    "build_design_space",
-    "build_initial_seed_params",
-    "case_result_to_score_inputs",
-    "derive_driver_constraints",
-    "evaluate_objective",
-    "emit_optimizer_payload",
-    "emit_optimizer_status_json",
-    "dump_driver_profile",
-    "feasibility_penalty",
-    "load_from_optimizer_payload",
-    "load_driver_profile",
-    "load_geometry_status",
-    "load_polar_data",
-    "merge_feasibility_results",
-    "normalize_path",
-    "objective_from_result_bundle",
-    "optuna_objective_wrapper",
-    "validate_params_against_design_space",
-    "validate_recipe_against_driver",
-]
+from __future__ import annotations
+
+from importlib import import_module
+
+
+_EXPORTS: dict[str, tuple[str, str]] = {
+    "CaseArtifacts": (".case_result", "CaseArtifacts"),
+    "CaseResult": (".case_result", "CaseResult"),
+    "CaseStatus": (".case_result", "CaseStatus"),
+    "normalize_path": (".case_result", "normalize_path"),
+    "DerivedDriverConstraints": (".driver_profile", "DerivedDriverConstraints"),
+    "DriverProfile": (".driver_profile", "DriverProfile"),
+    "ProductConstraints": (".driver_profile", "ProductConstraints"),
+    "derive_driver_constraints": (".driver_profile", "derive_driver_constraints"),
+    "dump_driver_profile": (".driver_profile", "dump_driver_profile"),
+    "load_driver_profile": (".driver_profile", "load_driver_profile"),
+    "DesignSpace": (".design_space", "DesignSpace"),
+    "DesignVariable": (".design_space", "DesignVariable"),
+    "build_default_baseline_recipe": (".design_space", "build_default_baseline_recipe"),
+    "build_design_space": (".design_space", "build_design_space"),
+    "build_initial_seed_params": (".design_space", "build_initial_seed_params"),
+    "FeasibilityIssue": (".feasibility", "FeasibilityIssue"),
+    "FeasibilityResult": (".feasibility", "FeasibilityResult"),
+    "feasibility_penalty": (".feasibility", "feasibility_penalty"),
+    "merge_feasibility_results": (".feasibility", "merge_feasibility_results"),
+    "validate_params_against_design_space": (".feasibility", "validate_params_against_design_space"),
+    "validate_recipe_against_driver": (".feasibility", "validate_recipe_against_driver"),
+    "evaluate_objective": (".objective", "evaluate_objective"),
+    "objective_from_result_bundle": (".objective", "objective_from_result_bundle"),
+    "optuna_objective_wrapper": (".objective", "optuna_objective_wrapper"),
+    "case_result_to_score_inputs": (".result_bridge", "case_result_to_score_inputs"),
+    "emit_optimizer_payload": (".result_bridge", "emit_optimizer_payload"),
+    "emit_optimizer_status_json": (".result_bridge", "emit_optimizer_status_json"),
+    "load_from_optimizer_payload": (".result_bridge", "load_from_optimizer_payload"),
+    "load_geometry_status": (".result_bridge", "load_geometry_status"),
+    "load_polar_data": (".result_bridge", "load_polar_data"),
+    "DEFAULT_COMPONENT_NORMALIZERS": (".score_defaults", "DEFAULT_COMPONENT_NORMALIZERS"),
+    "DEFAULT_HOM_PROXY_WEIGHTS": (".score_defaults", "DEFAULT_HOM_PROXY_WEIGHTS"),
+    "DEFAULT_SCORE_WEIGHTS": (".score_defaults", "DEFAULT_SCORE_WEIGHTS"),
+    "DEFAULT_STAGE_FACTORS": (".score_defaults", "DEFAULT_STAGE_FACTORS"),
+    "build_default_objective_config": (".score_defaults", "build_default_objective_config"),
+    "GeometryStatus": (".score_types", "GeometryStatus"),
+    "HomProxyWeights": (".score_types", "HomProxyWeights"),
+    "ObjectiveConfig": (".score_types", "ObjectiveConfig"),
+    "PolarData": (".score_types", "PolarData"),
+    "ScoreBundle": (".score_types", "ScoreBundle"),
+    "ScoreWeights": (".score_types", "ScoreWeights"),
+    "HeadlessCaseRunner": (".headless_case_runner", "HeadlessCaseRunner"),
+}
+
+__all__ = sorted(_EXPORTS)
 
 
 def __getattr__(name: str) -> object:
-    """Lazily import heavier runtime helpers only when requested."""
-    if name == "HeadlessCaseRunner":
-        from .headless_case_runner import HeadlessCaseRunner
-
-        return HeadlessCaseRunner
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    """Lazily resolve public exports on first access."""
+    module_info = _EXPORTS.get(name)
+    if module_info is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr_name = module_info
+    module = import_module(module_name, __name__)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value

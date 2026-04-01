@@ -1,5 +1,5 @@
 {
-  "recipe_case_name": "config",
+  "recipe_case_name": "Autima_1_8",
   "stage": "coarse",
   "target_bw_h": 70.0,
   "target_bw_v": 60.0,
@@ -7,8 +7,22 @@
     "XZ",
     "YZ"
   ],
-  "study_name": "#1test",
+  "study_name": "test#2_1",
   "storage": null,
-  "seed": 42,
-  "trials": 10
+  "seed": 24,
+  "trials": 10,
+  "driver_profile_path": null,
+  "product_constraints": {
+    "max_baffle_width_mm": 200.0,
+    "max_baffle_height_mm": 150.0,
+    "max_depth_mm": 150.0,
+    "min_wall_thickness_mm": null,
+    "target_bw_h_deg": null,
+    "target_bw_v_deg": null,
+    "target_low_freq_hz": 1500.0,
+    "target_high_freq_hz": 16000.0,
+    "symmetric_horizontal": true,
+    "symmetric_vertical": true,
+    "notes": []
+  }
 }

@@ -1,0 +1,49 @@
+{
+  "status": "error",
+  "started_at": "2026-04-01T04:06:57",
+  "finished_at": "2026-04-01T04:07:03",
+  "stages": [
+    {
+      "stage": "preparing",
+      "detail": "\u5efa\u7acb workspace \u8207\u521d\u59cb\u5316\u6d41\u7a0b\u4e2d...",
+      "time": "2026-04-01T04:06:57"
+    },
+    {
+      "stage": "saving recipe",
+      "detail": "\u5beb\u5165 recipe \u8207 cfg \u6a94\u6848...",
+      "time": "2026-04-01T04:06:57"
+    },
+    {
+      "stage": "running ATH",
+      "detail": "\u555f\u52d5 ATH \u751f\u6210\u7db2\u683c\u4e2d...",
+      "time": "2026-04-01T04:06:57"
+    },
+    {
+      "stage": "scanning mesh",
+      "detail": "\u6383\u63cf\u4e26\u6aa2\u67e5 BEM \u7db2\u683c\u4e2d...",
+      "time": "2026-04-01T04:06:58"
+    },
+    {
+      "stage": "mapping groups",
+      "detail": "\u5957\u7528 BEM group mapping \u898f\u5247\u4e2d...",
+      "time": "2026-04-01T04:06:58"
+    },
+    {
+      "stage": "running BEM",
+      "detail": "\u5efa\u7acb job \u4e26\u57f7\u884c BEM solver \u4e2d...",
+      "time": "2026-04-01T04:06:58"
+    },
+    {
+      "stage": "error",
+      "detail": "Run All \u5931\u6557\uff1aBEM solver failed with exit code 1.",
+      "time": "2026-04-01T04:07:03"
+    }
+  ],
+  "error": "BEM solver failed with exit code 1.",
+  "schema": "ath.workspace_manifest.v1",
+  "case_name": "config",
+  "case_key": "config",
+  "run_id": "20260401_040657",
+  "workspace": "E:\\pythonGATH\\ath-2025-06\\projects\\config\\runs\\20260401_040657",
+  "updated_at": "2026-04-01T04:07:03"
+}
