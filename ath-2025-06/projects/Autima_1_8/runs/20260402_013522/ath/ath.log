@@ -1,0 +1,3 @@
+Info    : Running 'E:\pythonGATH\.venv\Scripts\gmsh bem_mesh.geo -' [Gmsh 4.15.1, 1 node, max. 1 thread]
+Info    : Started on Thu Apr 02 01:35:23 2026
+Info    : Reading 'bem_mesh.geo'...

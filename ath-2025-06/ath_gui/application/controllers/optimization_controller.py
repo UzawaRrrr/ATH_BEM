@@ -29,7 +29,189 @@ class OptimizationController:
         self._stop_after_trial = threading.Event()
         self.latest_study_dir: Path | None = None
         self.best_trial_summary: dict[str, Any] | None = None
+        self._completed_best_trial_summary: dict[str, Any] | None = None
         self._base_recipe_snapshot: DesignRecipe | None = None
+
+    def _extract_display_params_from_frozen_trial(self, trial: Any) -> dict[str, Any]:
+        user_attrs = dict(getattr(trial, "user_attrs", {}) or {})
+        actual_params = user_attrs.get("design_space.actual_params")
+        if isinstance(actual_params, dict):
+            return dict(actual_params)
+        return dict(getattr(trial, "params", {}) or {})
+
+    def _extract_display_params_from_summary(self, summary: dict[str, Any] | None) -> dict[str, Any]:
+        payload = dict(summary or {})
+        user_attrs = dict(payload.get("user_attrs", {}) or {})
+        actual_params = user_attrs.get("design_space.actual_params")
+        if isinstance(actual_params, dict):
+            return dict(actual_params)
+        params = payload.get("params", {})
+        if isinstance(params, dict) and params:
+            return dict(params)
+        return dict(payload.get("raw_params", {}) or {})
+
+    def _extract_recipe_apply_params(self, summary: dict[str, Any] | None) -> tuple[dict[str, Any], str]:
+        payload = dict(summary or {})
+        user_attrs = dict(payload.get("user_attrs", {}) or {})
+        actual_params = user_attrs.get("design_space.actual_params")
+        if isinstance(actual_params, dict) and actual_params:
+            return dict(actual_params), "decoded"
+        params = payload.get("params", {})
+        if isinstance(params, dict) and params:
+            return dict(params), "summary_params"
+        raw_params = payload.get("raw_params", {})
+        if isinstance(raw_params, dict) and raw_params:
+            return dict(raw_params), "raw_params"
+        return {}, "missing"
+
+    def _extract_raw_params_from_summary(self, summary: dict[str, Any] | None) -> dict[str, Any]:
+        payload = dict(summary or {})
+        return dict(payload.get("raw_params", {}) or {})
+
+    def _build_best_trial_summary(
+        self,
+        *,
+        number: Any,
+        value: Any,
+        params: dict[str, Any],
+        raw_params: dict[str, Any],
+        user_attrs: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            "number": number,
+            "value": value,
+            "params": dict(params),
+            "raw_params": dict(raw_params),
+            "user_attrs": dict(user_attrs),
+        }
+
+    def _summarize_best_recipe_updates(
+        self,
+        base_recipe: DesignRecipe,
+        summary: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], list[str], str]:
+        params, source = self._extract_recipe_apply_params(summary)
+        direct_updates = {
+            key: value
+            for key, value in params.items()
+            if key in DesignRecipe.__dataclass_fields__
+        }
+        validation_errors: list[str] = []
+        if direct_updates:
+            candidate = replace(base_recipe, **direct_updates)
+            validation_errors = candidate.validate()
+        return params, direct_updates, validation_errors, source
+
+    def _recipe_from_best_summary(
+        self,
+        base_recipe: DesignRecipe,
+        summary: dict[str, Any] | None,
+    ) -> tuple[DesignRecipe | None, dict[str, Any], str, str]:
+        params, direct_updates, validation_errors, source = self._summarize_best_recipe_updates(base_recipe, summary)
+        if not params:
+            return None, {}, "no decoded best params available", source
+        if not direct_updates:
+            return None, {}, "decoded best params do not intersect with DesignRecipe fields", source
+        if validation_errors:
+            return None, direct_updates, "candidate base recipe from previous best is invalid: " + " | ".join(validation_errors), source
+        return replace(base_recipe, **direct_updates), direct_updates, "", source
+
+    def _summary_is_catastrophic_or_hard_fail(self, summary: dict[str, Any] | None) -> bool:
+        payload = dict(summary or {})
+        user_attrs = dict(payload.get("user_attrs", {}) or {})
+        if bool(user_attrs.get("flags.catastrophic", False)):
+            return True
+        if bool(user_attrs.get("feasibility.hard_fail", False)):
+            return True
+        feasibility = user_attrs.get("feasibility")
+        if isinstance(feasibility, dict) and bool(feasibility.get("hard_fail", False)):
+            return True
+        value = payload.get("value")
+        try:
+            return value is not None and float(value) >= self._catastrophic_threshold()
+        except Exception:
+            return False
+
+    def _append_best_param_mismatch_log(self, summary: dict[str, Any] | None) -> None:
+        params = self._extract_display_params_from_summary(summary)
+        available_keys = sorted(params)
+        recipe_fields = sorted(DesignRecipe.__dataclass_fields__)
+        intersection = sorted(set(available_keys).intersection(recipe_fields))
+        self.app.append_optimizer_log(f"[control] available best param keys={available_keys}")
+        self.app.append_optimizer_log(f"[control] DesignRecipe field keys={recipe_fields}")
+        self.app.append_optimizer_log(f"[control] applicable intersection count={len(intersection)}")
+
+    def _catastrophic_threshold(self) -> float:
+        try:
+            from optimizer.score_defaults import DEFAULT_CATASTROPHIC_SCORE
+
+            return float(DEFAULT_CATASTROPHIC_SCORE)
+        except Exception:
+            return 1000.0
+
+    def _append_trial_diagnostics(self, payload: dict[str, Any], *, context: str) -> None:
+        value = payload.get("value")
+        try:
+            numeric_value = float(value) if value is not None else None
+        except Exception:
+            numeric_value = None
+        catastrophic = bool(payload.get("catastrophic", False))
+        threshold = float(payload.get("catastrophic_score", self._catastrophic_threshold()) or self._catastrophic_threshold())
+        user_attrs = dict(payload.get("user_attrs", {}) or {})
+        flags = dict(payload.get("flags", {}) or {})
+        if not flags:
+            flags = {
+                str(key).removeprefix("flags."): flag_value
+                for key, flag_value in user_attrs.items()
+                if str(key).startswith("flags.")
+            }
+        feasibility = payload.get("feasibility")
+        if not isinstance(feasibility, dict):
+            feasibility = user_attrs.get("feasibility")
+        hard_fail = False
+        issues: list[dict[str, Any]] = []
+        if isinstance(feasibility, dict):
+            hard_fail = bool(feasibility.get("hard_fail", False))
+            raw_issues = feasibility.get("issues", [])
+            if isinstance(raw_issues, list):
+                issues = [dict(issue) for issue in raw_issues if isinstance(issue, dict)]
+        if not (catastrophic or hard_fail or (numeric_value is not None and numeric_value >= threshold)):
+            return
+
+        evaluation_stage = str(payload.get("evaluation_stage", "")).strip().lower()
+        if not evaluation_stage:
+            evaluation_stage = "preflight" if hard_fail else "objective"
+        score_pre_feasibility = payload.get("score_pre_feasibility", user_attrs.get("score.pre_feasibility"))
+        score_objective_raw = payload.get("score_objective_raw", user_attrs.get("score.objective_raw"))
+
+        trial_number = payload.get("trial_number", "?")
+        self.app.append_optimizer_log(
+            f"[trial {trial_number}] catastrophic score triggered during {context}; "
+            f"value={numeric_value} stage={evaluation_stage} hard_fail={hard_fail} "
+            f"score.pre_feasibility={score_pre_feasibility} score.objective_raw={score_objective_raw} "
+            f"flags={json.dumps(flags, ensure_ascii=True, sort_keys=True)}"
+        )
+        if evaluation_stage == "preflight":
+            self.app.append_optimizer_log(
+                f"[trial {trial_number}] preflight feasibility rejected this geometry before solver/objective execution."
+            )
+        for issue in issues[:6]:
+            code = issue.get("code", "unknown")
+            message = issue.get("message", "")
+            self.app.append_optimizer_log(f"[trial {trial_number}] issue: {code} | {message}")
+        recipe_preview = payload.get("recipe_preview")
+        if recipe_preview is None:
+            recipe_preview = user_attrs.get("recipe.preview")
+        if isinstance(recipe_preview, dict):
+            snippet = {
+                key: recipe_preview[key]
+                for key in ("throat_diameter", "horn_length", "coverage_angle", "mouth_width", "mouth_height", "mouth_corner_radius")
+                if key in recipe_preview
+            }
+            if snippet:
+                self.app.append_optimizer_log(
+                    f"[trial {trial_number}] recipe.preview={json.dumps(snippet, ensure_ascii=True, sort_keys=True)}"
+                )
 
     def is_running(self) -> bool:
         thread = self._study_thread
@@ -40,6 +222,7 @@ class OptimizationController:
             if self.is_running():
                 messagebox.showinfo(APP_TITLE, "最佳化目前正在執行中，請等待目前 study 完成。")
                 return
+            previous_best_summary = self.best_trial_summary or self._completed_best_trial_summary
             try:
                 if getattr(self.app, "_quick_dirty", False):
                     self.app.sync_quick_to_horn()
@@ -53,7 +236,41 @@ class OptimizationController:
                 messagebox.showerror(APP_TITLE, f"最佳化參數解析失敗：\n{exc}")
                 return
 
-            self._base_recipe_snapshot = DesignRecipe.from_dict(base_recipe.to_dict())
+            effective_base_recipe = DesignRecipe.from_dict(base_recipe.to_dict())
+            handoff_message = ""
+            handoff_warning = ""
+            previous_is_catastrophic = self._summary_is_catastrophic_or_hard_fail(previous_best_summary)
+            if study_config.stage in {"refine", "final"} and previous_best_summary is not None and not previous_is_catastrophic:
+                candidate_recipe, direct_updates, reason, source = self._recipe_from_best_summary(base_recipe, previous_best_summary)
+                if candidate_recipe is not None:
+                    effective_base_recipe = DesignRecipe.from_dict(candidate_recipe.to_dict())
+                    handoff_message = (
+                        f"[handoff] using previous best trial as base recipe for stage {study_config.stage}; "
+                        f"updated fields={sorted(direct_updates)} source={source}"
+                    )
+                    study_metadata["base_recipe_source"] = "previous_best_trial"
+                    study_metadata["base_recipe_handoff_fields"] = sorted(direct_updates)
+                    study_metadata["base_recipe_handoff_param_source"] = source
+                    if source != "decoded":
+                        handoff_warning = (
+                            f"[handoff] decoded best params were unavailable; falling back to {source} while preparing stage {study_config.stage}."
+                        )
+                else:
+                    handoff_message = (
+                        f"[handoff] previous best trial was available but could not be mapped to a new base recipe; "
+                        f"falling back to current GUI state ({reason}; source={source})"
+                    )
+                    study_metadata["base_recipe_source"] = "current_gui_state_fallback"
+            elif study_config.stage in {"refine", "final"} and previous_best_summary is not None and previous_is_catastrophic:
+                handoff_message = (
+                    f"[handoff] previous best trial is catastrophic or feasibility-hard-failed (value={previous_best_summary.get('value')}); "
+                    "falling back to current GUI state for this study."
+                )
+                study_metadata["base_recipe_source"] = "current_gui_state_catastrophic_fallback"
+            else:
+                study_metadata["base_recipe_source"] = "current_gui_state"
+
+            self._base_recipe_snapshot = DesignRecipe.from_dict(effective_base_recipe.to_dict())
             self.best_trial_summary = None
             self.latest_study_dir = study_config.study_dir
             self._stop_after_trial.clear()
@@ -65,11 +282,15 @@ class OptimizationController:
             self.app.optimizer_study_dir_var.set(str(study_config.study_dir or "(auto)"))
             self.app.status_var.set("最佳化準備中...")
             self.app._select_workspace_tab("Study")
+            if handoff_message:
+                self.app.append_optimizer_log(handoff_message)
+            if handoff_warning:
+                self.app.append_optimizer_log(handoff_warning)
             self.app._refresh_status_card_summary()
 
             self._study_thread = threading.Thread(
                 target=self._run_study_worker,
-                args=(base_recipe, base_horn_state, base_bem_state, base_global_state, study_config, study_metadata),
+                args=(effective_base_recipe, base_horn_state, base_bem_state, base_global_state, study_config, study_metadata),
                 daemon=True,
             )
             self._study_thread.start()
@@ -98,23 +319,37 @@ class OptimizationController:
             messagebox.showerror(APP_TITLE, f"無法開啟 study 目錄：\n{exc}")
 
     def apply_best_trial(self) -> None:
-        if self.best_trial_summary is None or self._base_recipe_snapshot is None:
+        summary = self.best_trial_summary or self._completed_best_trial_summary
+        if summary is None or self._base_recipe_snapshot is None:
             messagebox.showinfo(APP_TITLE, "目前尚無可套用的最佳 trial。")
             return
-        best_params = dict(self.best_trial_summary.get("params", {}))
-        direct_updates = {
-            key: value
-            for key, value in best_params.items()
-            if key in DesignRecipe.__dataclass_fields__
-        }
+        best_params, direct_updates, validation_errors, source = self._summarize_best_recipe_updates(self._base_recipe_snapshot, summary)
+        if source != "decoded":
+            self.app.append_optimizer_log(
+                f"[control] decoded best params were unavailable during apply-back; falling back to {source}. "
+                "Only DesignRecipe-compatible keys will be applied."
+            )
         if not direct_updates:
+            self._append_best_param_mismatch_log(summary)
             messagebox.showinfo(APP_TITLE, "目前最佳 trial 沒有可直接套用到 DesignRecipe 的參數。")
+            return
+        if validation_errors:
+            self.app.append_optimizer_log(
+                "[control] best trial could not be applied because the resulting DesignRecipe is invalid: "
+                + " | ".join(validation_errors)
+            )
+            messagebox.showerror(APP_TITLE, "最佳 trial 無法套回 GUI，因為產生的 DesignRecipe 無效。")
             return
         recipe = replace(self._base_recipe_snapshot, **direct_updates)
         self.app.apply_design_recipe(recipe)
-        self.app.status_var.set("已將最佳 trial 套用回目前 GUI 欄位。")
+        self._base_recipe_snapshot = DesignRecipe.from_dict(recipe.to_dict())
+        source_label = "decoded best trial" if source == "decoded" else f"{source} best trial fallback"
+        self.app.status_var.set(f"已將 {source_label} 套用回目前 GUI 欄位，現在 GUI 已切換成最佳 trial 作為基底。")
         self.app.notebook.select(self.app.control_tabs["QuickStart"])
-        self.app.append_optimizer_log("[control] best trial applied to GUI fields")
+        self.app.append_optimizer_log(
+            f"[control] {source_label} applied to GUI fields={sorted(direct_updates)}; "
+            "current GUI state is now the active optimization base."
+        )
 
     def _run_study_worker(
         self,
@@ -162,12 +397,15 @@ class OptimizationController:
             write_study_artifacts(result.study, result.study_dir, metadata=study_metadata)
             self.latest_study_dir = result.study_dir
             best_trial = result.study.best_trial
-            self.best_trial_summary = {
-                "number": best_trial.number,
-                "value": best_trial.value,
-                "params": dict(best_trial.params),
-                "user_attrs": dict(best_trial.user_attrs),
-            }
+            summary = self._build_best_trial_summary(
+                number=best_trial.number,
+                value=best_trial.value,
+                params=self._extract_display_params_from_frozen_trial(best_trial),
+                raw_params=dict(best_trial.params),
+                user_attrs=dict(best_trial.user_attrs),
+            )
+            self.best_trial_summary = summary
+            self._completed_best_trial_summary = dict(summary)
             self.app.after(0, lambda: self._apply_final_success(result.study.study_name, result.study.best_value))
         except Exception as exc:
             self.app.after(0, lambda: self._apply_final_error(exc))
@@ -188,6 +426,11 @@ class OptimizationController:
             self.app.optimizer_trial_var.set(f"Trial: 0 / {payload.get('trials', '?')}")
             self.app.optimizer_study_dir_var.set(study_dir or "(auto)")
             self.app.append_optimizer_log(f"[study] started {payload.get('study_name', '')}")
+            strategy = str(payload.get("constraint_strategy", "")).strip()
+            if strategy:
+                self.app.append_optimizer_log(f"[study] constraint strategy={strategy}")
+            for note in payload.get("constraint_warnings", []) or []:
+                self.app.append_optimizer_log(f"[study] constraint note: {note}")
             self.app._refresh_status_card_summary()
             return
 
@@ -205,6 +448,7 @@ class OptimizationController:
         if event == "trial_scored":
             value = payload.get("value")
             self.app.append_optimizer_log(f"[trial {payload.get('trial_number', '?')}] score={value}")
+            self._append_trial_diagnostics(payload, context="trial_scored")
             self.app._refresh_status_card_summary()
             return
 
@@ -212,20 +456,25 @@ class OptimizationController:
             value = payload.get("value")
             best_value = payload.get("best_value")
             best_params = dict(payload.get("best_params", {}))
+            best_raw_params = dict(payload.get("best_raw_params", {}))
             best_user_attrs = dict(payload.get("best_user_attrs", {}))
             if best_value is not None:
                 self.app.optimizer_best_score_var.set(f"Best score: {float(best_value):.6f}")
-                self.app.set_optimizer_best_text(self._format_best_trial_text(best_params, best_user_attrs, best_value))
-                self.best_trial_summary = {
-                    "number": payload.get("best_number"),
-                    "value": best_value,
-                    "params": best_params,
-                    "user_attrs": best_user_attrs,
-                }
+                self.app.set_optimizer_best_text(self._format_best_trial_text(best_params, best_user_attrs, best_value, raw_params=best_raw_params))
+                summary = self._build_best_trial_summary(
+                    number=payload.get("best_number"),
+                    value=best_value,
+                    params=best_params,
+                    raw_params=best_raw_params,
+                    user_attrs=best_user_attrs,
+                )
+                self.best_trial_summary = summary
+                self._completed_best_trial_summary = dict(summary)
             self.app.optimizer_status_var.set(f"Trial {payload.get('trial_number', '?')} completed")
             self.app.append_optimizer_log(
                 f"[trial {payload.get('trial_number', '?')}] completed value={value} best={best_value}"
             )
+            self._append_trial_diagnostics(payload, context="trial_completed")
             self.app._refresh_status_card_summary()
             return
 
@@ -239,8 +488,36 @@ class OptimizationController:
             best_value = payload.get("best_value")
             if best_value is not None:
                 self.app.optimizer_best_score_var.set(f"Best score: {float(best_value):.6f}")
+                best_params = dict(payload.get("best_params", {}) or {})
+                best_raw_params = dict(payload.get("best_raw_params", {}) or {})
+                best_user_attrs = dict(payload.get("best_user_attrs", {}) or {})
+                self.app.set_optimizer_best_text(self._format_best_trial_text(best_params, best_user_attrs, best_value, raw_params=best_raw_params))
+                summary = self._build_best_trial_summary(
+                    number=payload.get("best_number"),
+                    value=best_value,
+                    params=best_params,
+                    raw_params=best_raw_params,
+                    user_attrs=best_user_attrs,
+                )
+                self.best_trial_summary = summary
+                self._completed_best_trial_summary = dict(summary)
             self.app.optimizer_status_var.set("Study completed")
             self.app.append_optimizer_log(f"[study] completed after {payload.get('completed_trials', 0)} trials")
+            self._append_trial_diagnostics(
+                {
+                    "trial_number": payload.get("best_number", "?"),
+                    "value": payload.get("best_value"),
+                    "catastrophic": payload.get("best_catastrophic", False),
+                    "catastrophic_score": self._catastrophic_threshold(),
+                    "feasibility": payload.get("best_feasibility"),
+                    "flags": payload.get("best_flags", {}),
+                    "recipe_preview": payload.get("best_recipe_preview"),
+                    "score_pre_feasibility": payload.get("best_score_pre_feasibility"),
+                    "score_objective_raw": payload.get("best_score_objective_raw"),
+                    "evaluation_stage": payload.get("best_evaluation_stage"),
+                },
+                context="study_completed.best",
+            )
             self.app._refresh_status_card_summary()
             return
 
@@ -339,16 +616,27 @@ class OptimizationController:
         metadata["planes"] = planes
         return config, metadata
 
-    def _format_best_trial_text(self, best_params: dict[str, Any], best_user_attrs: dict[str, Any], best_value: float) -> str:
+    def _format_best_trial_text(
+        self,
+        best_params: dict[str, Any],
+        best_user_attrs: dict[str, Any],
+        best_value: float,
+        *,
+        raw_params: dict[str, Any] | None = None,
+    ) -> str:
         lines = [
             f"Best objective: {float(best_value):.6f}",
             "",
-            "Params:",
+            "Decoded Params:",
         ]
         if best_params:
             lines.extend(f"- {key}: {value}" for key, value in sorted(best_params.items()))
         else:
             lines.append("(none)")
+        raw_payload = dict(raw_params or {})
+        if raw_payload and raw_payload != best_params:
+            lines.extend(["", "Raw Optuna Params:"])
+            lines.extend(f"- {key}: {value}" for key, value in sorted(raw_payload.items()))
 
         score_keys = (
             "score.total",

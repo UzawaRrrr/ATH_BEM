@@ -98,8 +98,30 @@ def test_feasibility_hard_fail_and_soft_penalty_cases() -> None:
     assert feasibility_penalty(coverage_soft, catastrophic_score=1000.0) > 0.0
 
 
+def test_packaging_conflict_makes_short_horn_a_soft_issue_instead_of_catastrophic() -> None:
+    profile = _make_profile()
+    constraints = ProductConstraints(
+        max_baffle_width_mm=320.0,
+        max_baffle_height_mm=240.0,
+        max_depth_mm=160.0,
+        min_wall_thickness_mm=4.0,
+        target_bw_h_deg=60.0,
+        target_bw_v_deg=60.0,
+        target_low_freq_hz=1200.0,
+    )
+    recipe = _make_recipe(horn_length=160.0, mouth_width=160.0, mouth_height=185.0, coverage_angle=60.0)
+
+    result = validate_recipe_against_driver(recipe, profile, constraints)
+
+    assert result.hard_fail is False
+    assert result.ok is True
+    assert any(issue.code == "horn_too_short" and issue.severity == "soft" for issue in result.issues)
+    assert feasibility_penalty(result, catastrophic_score=1000.0) < 1000.0
+
+
 def _run_all() -> None:
     test_feasibility_hard_fail_and_soft_penalty_cases()
+    test_packaging_conflict_makes_short_horn_a_soft_issue_instead_of_catastrophic()
 
 
 if __name__ == "__main__":

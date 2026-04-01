@@ -7,15 +7,15 @@
     "XZ",
     "YZ"
   ],
-  "study_name": "test#2_1",
+  "study_name": "test#2",
   "storage": null,
   "seed": 24,
   "trials": 10,
   "driver_profile_path": null,
   "product_constraints": {
-    "max_baffle_width_mm": 200.0,
-    "max_baffle_height_mm": 150.0,
-    "max_depth_mm": 150.0,
+    "max_baffle_width_mm": null,
+    "max_baffle_height_mm": null,
+    "max_depth_mm": 160.0,
     "min_wall_thickness_mm": null,
     "target_bw_h_deg": null,
     "target_bw_v_deg": null,
@@ -24,5 +24,6 @@
     "symmetric_horizontal": true,
     "symmetric_vertical": true,
     "notes": []
-  }
+  },
+  "base_recipe_source": "current_gui_state"
 }

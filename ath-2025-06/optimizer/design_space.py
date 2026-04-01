@@ -27,6 +27,7 @@ DEFAULT_CORNER_RADIUS_MM = 10.0
 DEFAULT_MAX_MOUTH_DIM_MM = 600.0
 UNIT_PARAM_PREFIX = "unit__"
 SEED_CONSERVATIVE_RATIO = 0.35
+CONFLICTING_HORN_WINDOW_RATIO = 0.80
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -67,6 +68,22 @@ def _coerce_bounds(
     if resolved_high <= resolved_low:
         resolved_high = resolved_low + max(1.0, resolved_low * 0.1)
     return (resolved_low, resolved_high)
+
+
+def _conflicting_horn_bounds(
+    *,
+    min_length: float,
+    max_length: float,
+    base_length: float,
+) -> tuple[float, float]:
+    hard_cap = max(float(max_length), DEFAULT_HORN_LENGTH_FLOOR_MM)
+    candidate_low = min(float(base_length), hard_cap * CONFLICTING_HORN_WINDOW_RATIO)
+    low = max(DEFAULT_HORN_LENGTH_FLOOR_MM, min(candidate_low, hard_cap))
+    if low >= hard_cap:
+        low = max(DEFAULT_HORN_LENGTH_FLOOR_MM, hard_cap - max(1.0, hard_cap * 0.15))
+    if low >= hard_cap:
+        low = max(0.0, hard_cap - 1.0)
+    return (low, hard_cap)
 
 
 def _default_source_mode(profile: DriverProfile, base_recipe: DesignRecipe) -> str:
@@ -438,12 +455,33 @@ def build_design_space(
         fallback_low=max(DEFAULT_HORN_LENGTH_FLOOR_MM, _range_around(effective_base.horn_length, min_floor=60.0, low_factor=0.75, high_factor=1.30)[0]),
         fallback_high=_range_around(effective_base.horn_length, min_floor=60.0, low_factor=0.75, high_factor=1.30)[1],
     )
+    if (
+        derived.min_horn_length_mm is not None
+        and derived.max_horn_length_mm is not None
+        and float(derived.max_horn_length_mm) < float(derived.min_horn_length_mm)
+    ):
+        horn_low, horn_high = _conflicting_horn_bounds(
+            min_length=float(derived.min_horn_length_mm),
+            max_length=float(derived.max_horn_length_mm),
+            base_length=float(effective_base.horn_length),
+        )
+        notes.append(
+            "Horn-length heuristic minimum exceeds max depth; optimizer will explore a capped window up to max_depth "
+            "and rely on soft penalties for the short-horn conflict."
+        )
     variables["horn_length"] = _build_variable(
         name="horn_length",
         kind="float",
         low=horn_low,
         high=horn_high,
-        metadata={"bounds_source": "derived_or_base"},
+        metadata={
+            "bounds_source": "derived_or_base",
+            "conflict_with_max_depth": bool(
+                derived.min_horn_length_mm is not None
+                and derived.max_horn_length_mm is not None
+                and float(derived.max_horn_length_mm) < float(derived.min_horn_length_mm)
+            ),
+        },
     )
 
     coverage_low, coverage_high = _coverage_bounds(driver_profile, product_constraints, derived, effective_base)

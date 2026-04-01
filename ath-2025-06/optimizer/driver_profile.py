@@ -9,7 +9,7 @@ unmanufacturable regions before ATH/mesh/BEM work starts.
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal, Mapping
 
@@ -27,6 +27,18 @@ MOUTH_COVERAGE_EXPANSION_REFERENCE_DEG = 110.0
 MOUTH_COVERAGE_EXPANSION_LIMIT = (1.0, 2.25)
 HORN_COVERAGE_LENGTH_LIMIT = (0.80, 1.80)
 BASE_RECIPE_LIMIT_MARGIN_FACTOR = 1.15
+INFERRED_PRODUCT_CONSTRAINTS_NOTE = "Product constraints inferred from base recipe; explicit packaging limits are recommended."
+COARSE_INFERRED_RELAXATION_NOTE = (
+    "Coarse stage is using relaxed recipe-inferred constraints; inferred packaging limits were widened "
+    "and low-frequency gating was disabled to avoid over-constraining the search space."
+)
+COARSE_INFERRED_DEPTH_CONFLICT_NOTE = (
+    "Detected a conflict between inferred max_depth and derived horn-length guidance; coarse-stage inferred depth "
+    "was widened to avoid an all-catastrophic preflight."
+)
+COARSE_INFERRED_BAFFLE_MARGIN_FACTOR = 1.45
+COARSE_INFERRED_DEPTH_MARGIN_FACTOR = 1.60
+COARSE_INFERRED_DEPTH_FLOOR_FACTOR = 1.10
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -52,6 +64,16 @@ def _as_notes(value: Any) -> list[str]:
         return [str(item) for item in value if str(item).strip()]
     text = str(value).strip()
     return [text] if text else []
+
+
+def _dedupe_notes(*note_groups: list[str]) -> list[str]:
+    ordered: list[str] = []
+    for group in note_groups:
+        for note in group:
+            text = str(note).strip()
+            if text and text not in ordered:
+                ordered.append(text)
+    return ordered
 
 
 def _positive_or_none(*values: float | None) -> float | None:
@@ -232,6 +254,61 @@ def dump_driver_profile(path: str | Path, profile: DriverProfile) -> None:
     )
 
 
+def is_recipe_inferred_constraints(product_constraints: ProductConstraints) -> bool:
+    """Return whether the constraints were inferred from a `DesignRecipe` fallback."""
+    notes = {str(note).strip() for note in product_constraints.notes}
+    return INFERRED_PRODUCT_CONSTRAINTS_NOTE in notes
+
+
+def relax_inferred_product_constraints(
+    product_constraints: ProductConstraints,
+    *,
+    stage: str,
+    min_depth_floor_mm: float | None = None,
+) -> ProductConstraints:
+    """Relax recipe-inferred constraints for early coarse-stage exploration.
+
+    This helper only changes constraints that were inferred from a recipe fallback.
+    Explicit user-provided packaging limits remain untouched. The coarse-stage
+    relaxation widens inferred width/height/depth ceilings and disables the
+    inferred low-frequency horn-length gate, because recipe-derived `bem_f1`
+    should not behave like a hard geometry requirement during coarse search.
+    """
+    if str(stage).strip().lower() != "coarse" or not is_recipe_inferred_constraints(product_constraints):
+        return product_constraints
+
+    max_depth = (
+        float(product_constraints.max_depth_mm) * COARSE_INFERRED_DEPTH_MARGIN_FACTOR
+        if product_constraints.max_depth_mm is not None
+        else None
+    )
+    if min_depth_floor_mm is not None:
+        floor_depth = max(0.0, float(min_depth_floor_mm) * COARSE_INFERRED_DEPTH_FLOOR_FACTOR)
+        max_depth = floor_depth if max_depth is None else max(max_depth, floor_depth)
+
+    notes = _dedupe_notes(
+        list(product_constraints.notes),
+        [COARSE_INFERRED_RELAXATION_NOTE],
+        [COARSE_INFERRED_DEPTH_CONFLICT_NOTE] if min_depth_floor_mm is not None else [],
+    )
+    return replace(
+        product_constraints,
+        max_baffle_width_mm=(
+            float(product_constraints.max_baffle_width_mm) * COARSE_INFERRED_BAFFLE_MARGIN_FACTOR
+            if product_constraints.max_baffle_width_mm is not None
+            else None
+        ),
+        max_baffle_height_mm=(
+            float(product_constraints.max_baffle_height_mm) * COARSE_INFERRED_BAFFLE_MARGIN_FACTOR
+            if product_constraints.max_baffle_height_mm is not None
+            else None
+        ),
+        max_depth_mm=max_depth,
+        target_low_freq_hz=None,
+        notes=notes,
+    )
+
+
 def derive_driver_constraints(
     profile: DriverProfile,
     product_constraints: ProductConstraints,
@@ -387,5 +464,5 @@ def infer_product_constraints_from_recipe(
         target_bw_v_deg=target_bw_v_deg if target_bw_v_deg is not None else float(getattr(recipe, "coverage_angle", DEFAULT_COVERAGE_CENTER_DEG)),
         target_low_freq_hz=bem_f1 if bem_f1 > 0.0 else None,
         target_high_freq_hz=bem_f2 if bem_f2 > 0.0 else None,
-        notes=["Product constraints inferred from base recipe; explicit packaging limits are recommended."],
+        notes=[INFERRED_PRODUCT_CONSTRAINTS_NOTE],
     )

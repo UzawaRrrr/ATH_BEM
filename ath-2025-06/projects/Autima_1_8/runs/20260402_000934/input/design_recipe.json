@@ -1,0 +1,30 @@
+{
+  "case_name": "Autima_1_8",
+  "throat_diameter": 25.4,
+  "horn_length": 175.25388641683494,
+  "coverage_angle": 77.27961206236347,
+  "flare_style": "os",
+  "mouth_shape": "rect",
+  "mouth_width": 172.85929679470058,
+  "mouth_height": 212.77620796424418,
+  "mouth_corner_radius": 38.96388451117637,
+  "source_mode": "normal",
+  "source_shape": "cap",
+  "source_velocity": 1.176088427531154,
+  "auto_enclosure_enabled": false,
+  "output_abec_project_enabled": true,
+  "bem_f1": 1500.0,
+  "bem_f2": 15000.0,
+  "bem_num_freq": 48,
+  "observation_plane": "XZ",
+  "mic_distance": 5.0,
+  "symmetry_enabled": true,
+  "symmetry_planes": [
+    "x",
+    "y"
+  ],
+  "notes": "from_current_ui",
+  "ath_overrides": {},
+  "bem_overrides": {},
+  "schema": "ath.design_recipe.v1"
+}

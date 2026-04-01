@@ -18,7 +18,9 @@ from .driver_profile import (
     ProductConstraints,
     infer_driver_profile_from_recipe,
     infer_product_constraints_from_recipe,
+    is_recipe_inferred_constraints,
     load_driver_profile,
+    relax_inferred_product_constraints,
 )
 from .feasibility import (
     FeasibilityIssue,
@@ -164,13 +166,31 @@ def _trial_display_params(trial: optuna.trial.FrozenTrial | Any) -> dict[str, An
     return dict(getattr(trial, "params", {}) or {})
 
 
+def _trial_raw_params(trial: optuna.trial.FrozenTrial | Any) -> dict[str, Any]:
+    return dict(getattr(trial, "params", {}) or {})
+
+
+def _extract_flag_attrs(user_attrs: dict[str, Any]) -> dict[str, Any]:
+    return {
+        str(key).removeprefix("flags."): value
+        for key, value in dict(user_attrs).items()
+        if str(key).startswith("flags.")
+    }
+
+
+def _is_catastrophic_value(value: float | None, catastrophic_score: float) -> bool:
+    if value is None:
+        return False
+    return float(value) >= float(catastrophic_score)
+
+
 def _serialize_trial(trial: optuna.trial.FrozenTrial) -> dict[str, Any]:
     return {
         "number": trial.number,
         "state": str(trial.state),
         "value": trial.value,
         "params": _trial_display_params(trial),
-        "raw_params": dict(trial.params),
+        "raw_params": _trial_raw_params(trial),
         "user_attrs": dict(trial.user_attrs),
     }
 
@@ -227,6 +247,49 @@ def _resolve_product_constraints(config: OptunaStudyConfig, base_recipe: DesignR
     )
 
 
+def _dedupe_text(items: list[str]) -> list[str]:
+    unique: list[str] = []
+    for item in items:
+        text = str(item).strip()
+        if text and text not in unique:
+            unique.append(text)
+    return unique
+
+
+def _resolve_constraint_context(
+    config: OptunaStudyConfig,
+    base_recipe: DesignRecipe,
+) -> tuple[DriverProfile, ProductConstraints, DesignSpace, list[str], str]:
+    driver_profile = _resolve_driver_profile(config, base_recipe)
+    product_constraints = _resolve_product_constraints(config, base_recipe)
+    inferred_constraints = config.product_constraints is None and is_recipe_inferred_constraints(product_constraints)
+    strategy = "explicit_or_user_constraints"
+    if inferred_constraints:
+        strategy = "recipe_inferred"
+    if inferred_constraints and config.stage == "coarse":
+        product_constraints = relax_inferred_product_constraints(product_constraints, stage=config.stage)
+        strategy = "recipe_inferred_relaxed_for_coarse"
+
+    design_space = build_design_space(driver_profile, product_constraints, base_recipe=base_recipe)
+    if inferred_constraints and config.stage == "coarse":
+        derived = design_space.derived
+        if (
+            derived.max_horn_length_mm is not None
+            and derived.min_horn_length_mm is not None
+            and float(derived.max_horn_length_mm) < float(derived.min_horn_length_mm)
+        ):
+            product_constraints = relax_inferred_product_constraints(
+                product_constraints,
+                stage=config.stage,
+                min_depth_floor_mm=float(derived.min_horn_length_mm),
+            )
+            design_space = build_design_space(driver_profile, product_constraints, base_recipe=base_recipe)
+            strategy = "recipe_inferred_relaxed_for_coarse_conflict"
+
+    constraint_warnings = _dedupe_text(list(product_constraints.notes) + list(design_space.notes))
+    return driver_profile, product_constraints, design_space, constraint_warnings, strategy
+
+
 def _recipe_to_design_space_params(recipe: DesignRecipe, design_space: DesignSpace) -> dict[str, Any]:
     params: dict[str, Any] = {}
     for name, variable in design_space.variables.items():
@@ -256,9 +319,10 @@ def run_optuna_study(
     stop_event: Any | None = None,
 ) -> StudyRunResult:
     """Run an Optuna study and emit coarse progress events for GUI/CLI consumers."""
-    driver_profile = _resolve_driver_profile(config, base_recipe)
-    product_constraints = _resolve_product_constraints(config, base_recipe)
-    design_space = build_design_space(driver_profile, product_constraints, base_recipe=base_recipe)
+    driver_profile, product_constraints, design_space, constraint_warnings, constraint_strategy = _resolve_constraint_context(
+        config,
+        base_recipe,
+    )
     use_design_space_sampler = suggest_fn is None or suggest_fn is suggest_default_params
     effective_suggest = suggest_fn or suggest_default_params
 
@@ -300,6 +364,8 @@ def run_optuna_study(
         driver_profile=_json_safe(driver_profile.to_dict()),
         product_constraints=_json_safe(product_constraints.to_dict()),
         design_space_notes=list(design_space.notes),
+        constraint_strategy=str(constraint_strategy),
+        constraint_warnings=list(constraint_warnings),
     )
 
     def objective(trial: optuna.trial.Trial) -> float:
@@ -344,6 +410,15 @@ def run_optuna_study(
                 "trial_scored",
                 trial_number=int(trial.number),
                 value=float(pre_score_penalty),
+                catastrophic=True,
+                catastrophic_score=float(objective_config.catastrophic_score),
+                feasibility=_serialize_feasibility(combined_result),
+                flags={"any_missing": True, "catastrophic": True},
+                recipe_preview=_json_safe(recipe.to_dict()),
+                score_pre_feasibility=float(pre_score_penalty),
+                score_objective_raw=None,
+                evaluation_stage="preflight",
+                preflight_failed=True,
             )
             return float(pre_score_penalty)
 
@@ -352,10 +427,20 @@ def run_optuna_study(
         total = float(pre_score_penalty) + float(raw_score)
         trial.set_user_attr("score.objective_raw", float(raw_score))
         trial.set_user_attr("score.total", float(total))
+        user_attrs = dict(getattr(trial, "user_attrs", {}) or {})
         emit(
             "trial_scored",
             trial_number=int(trial.number),
             value=float(total),
+            catastrophic=bool(user_attrs.get("flags.catastrophic", False) or _is_catastrophic_value(total, objective_config.catastrophic_score)),
+            catastrophic_score=float(objective_config.catastrophic_score),
+            feasibility=_serialize_feasibility(combined_result),
+            flags=_extract_flag_attrs(user_attrs),
+            recipe_preview=_json_safe(recipe.to_dict()),
+            score_pre_feasibility=float(pre_score_penalty),
+            score_objective_raw=float(raw_score),
+            evaluation_stage="objective",
+            preflight_failed=False,
         )
         return float(total)
 
@@ -367,12 +452,28 @@ def run_optuna_study(
             value=trial.value,
             state=str(trial.state),
             params=_trial_display_params(trial),
-            raw_params=dict(trial.params),
+            raw_params=_trial_raw_params(trial),
             user_attrs=dict(trial.user_attrs),
+            catastrophic=bool(
+                dict(trial.user_attrs).get("flags.catastrophic", False)
+                or _is_catastrophic_value(trial.value, objective_config.catastrophic_score)
+            ),
+            catastrophic_score=float(objective_config.catastrophic_score),
+            feasibility=dict(trial.user_attrs).get("feasibility"),
+            flags=_extract_flag_attrs(dict(trial.user_attrs)),
+            recipe_preview=dict(trial.user_attrs).get("recipe.preview"),
+            score_pre_feasibility=dict(trial.user_attrs).get("score.pre_feasibility"),
+            score_objective_raw=dict(trial.user_attrs).get("score.objective_raw"),
+            evaluation_stage=(
+                "preflight"
+                if dict(trial.user_attrs).get("score.objective_raw") is None
+                else "objective"
+            ),
+            preflight_failed=bool(dict(trial.user_attrs).get("feasibility.hard_fail", False)),
             best_number=None if best_trial is None else int(best_trial.number),
             best_value=None if best_trial is None else best_trial.value,
             best_params={} if best_trial is None else _trial_display_params(best_trial),
-            best_raw_params={} if best_trial is None else dict(best_trial.params),
+            best_raw_params={} if best_trial is None else _trial_raw_params(best_trial),
             best_user_attrs={} if best_trial is None else dict(best_trial.user_attrs),
         )
         if stop_event is not None and getattr(stop_event, "is_set", lambda: False)():
@@ -388,8 +489,26 @@ def run_optuna_study(
         best_number=None if best_trial is None else int(best_trial.number),
         best_value=None if best_trial is None else best_trial.value,
         best_params={} if best_trial is None else _trial_display_params(best_trial),
-        best_raw_params={} if best_trial is None else dict(best_trial.params),
+        best_raw_params={} if best_trial is None else _trial_raw_params(best_trial),
         best_user_attrs={} if best_trial is None else dict(best_trial.user_attrs),
+        best_catastrophic=(
+            False
+            if best_trial is None
+            else bool(
+                dict(best_trial.user_attrs).get("flags.catastrophic", False)
+                or _is_catastrophic_value(best_trial.value, objective_config.catastrophic_score)
+            )
+        ),
+        best_feasibility=None if best_trial is None else dict(best_trial.user_attrs).get("feasibility"),
+        best_flags={} if best_trial is None else _extract_flag_attrs(dict(best_trial.user_attrs)),
+        best_recipe_preview=None if best_trial is None else dict(best_trial.user_attrs).get("recipe.preview"),
+        best_score_pre_feasibility=None if best_trial is None else dict(best_trial.user_attrs).get("score.pre_feasibility"),
+        best_score_objective_raw=None if best_trial is None else dict(best_trial.user_attrs).get("score.objective_raw"),
+        best_evaluation_stage=(
+            None
+            if best_trial is None
+            else ("preflight" if dict(best_trial.user_attrs).get("score.objective_raw") is None else "objective")
+        ),
         completed_trials=len(study.trials),
     )
     return StudyRunResult(study=study, study_dir=study_dir, config=replace(config, study_name=study_name, study_dir=study_dir))

@@ -70,6 +70,26 @@ def test_build_design_space_respects_fixed_and_bounded_fields() -> None:
     assert float(space.variables["horn_length"].high or 0.0) <= 240.0 + 1.0e-9
 
 
+def test_conflicting_max_depth_caps_horn_length_search_window() -> None:
+    profile = _make_profile()
+    constraints = ProductConstraints(
+        max_baffle_width_mm=320.0,
+        max_baffle_height_mm=240.0,
+        max_depth_mm=160.0,
+        min_wall_thickness_mm=4.0,
+        target_bw_h_deg=60.0,
+        target_bw_v_deg=60.0,
+        target_low_freq_hz=1200.0,
+    )
+    base_recipe = _make_base_recipe()
+    space = build_design_space(profile, constraints, base_recipe=base_recipe)
+
+    horn = space.variables["horn_length"]
+    assert float(horn.high or 0.0) <= 160.0 + 1.0e-9
+    assert float(horn.low or 0.0) < float(horn.high or 0.0)
+    assert any("capped window up to max_depth" in note for note in space.notes)
+
+
 def test_initial_seed_stays_inside_design_space_and_roundtrips() -> None:
     profile = _make_profile()
     constraints = _make_constraints()
@@ -178,6 +198,7 @@ def test_study_runner_smoke_blocks_infeasible_trials_and_runs_feasible_trials() 
 
 def _run_all() -> None:
     test_build_design_space_respects_fixed_and_bounded_fields()
+    test_conflicting_max_depth_caps_horn_length_search_window()
     test_initial_seed_stays_inside_design_space_and_roundtrips()
     test_study_runner_smoke_blocks_infeasible_trials_and_runs_feasible_trials()
 

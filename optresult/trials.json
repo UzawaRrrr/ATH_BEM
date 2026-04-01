@@ -8,9 +8,9 @@
       "source_mode": "normal",
       "horn_length": 190.80041199901262,
       "coverage_angle": 70.98536149848728,
-      "mouth_width": 183.99147260317443,
-      "mouth_height": 142.7743401779664,
-      "mouth_corner_radius": 23.107606653699712,
+      "mouth_width": 324.97276086314133,
+      "mouth_height": 163.97342316604852,
+      "mouth_corner_radius": 45.13204424550725,
       "source_velocity": 1.4617932872722683
     },
     "raw_params": {
@@ -31,9 +31,9 @@
         "source_mode": "normal",
         "horn_length": 190.80041199901262,
         "coverage_angle": 70.98536149848728,
-        "mouth_width": 183.99147260317443,
-        "mouth_height": 142.7743401779664,
-        "mouth_corner_radius": 23.107606653699712,
+        "mouth_width": 324.97276086314133,
+        "mouth_height": 163.97342316604852,
+        "mouth_corner_radius": 45.13204424550725,
         "source_velocity": 1.4617932872722683
       },
       "design_space.fixed_params": {
@@ -47,19 +47,19 @@
         "coverage_angle": 70.98536149848728,
         "flare_style": "os",
         "mouth_shape": "rect",
-        "mouth_width": 183.99147260317443,
-        "mouth_height": 142.7743401779664,
-        "mouth_corner_radius": 23.107606653699712,
+        "mouth_width": 324.97276086314133,
+        "mouth_height": 163.97342316604852,
+        "mouth_corner_radius": 45.13204424550725,
         "source_mode": "normal",
         "source_shape": "cap",
         "source_velocity": 1.4617932872722683,
         "auto_enclosure_enabled": false,
         "output_abec_project_enabled": true,
-        "bem_f1": 1500.0,
+        "bem_f1": 200.0,
         "bem_f2": 20000.0,
-        "bem_num_freq": 30,
+        "bem_num_freq": 48,
         "observation_plane": "XZ",
-        "mic_distance": 5.0,
+        "mic_distance": 2.0,
         "symmetry_enabled": true,
         "symmetry_planes": [
           "x",
@@ -76,51 +76,37 @@
         "soft_penalty": 0.0,
         "issues": [
           {
-            "code": "mouth_height_too_large",
+            "code": "horn_too_deep",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 142.7743401779664,
-            "limit": 134.0
+            "message": "Horn length exceeds the product max depth.",
+            "value": 190.80041199901262,
+            "limit": 160.0
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 190.80041199901262,
-            "limit": 150.0
-          },
-          {
-            "code": "mouth_height_too_large",
-            "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 142.7743401779664,
-            "limit": 134.0
-          },
-          {
-            "code": "horn_too_deep",
-            "severity": "hard",
-            "message": "Horn length exceeds the product max depth.",
-            "value": 190.80041199901262,
-            "limit": 150.0
+            "limit": 160.0
           }
         ],
         "derived_metrics": {
           "horn_length": 190.80041199901262,
           "coverage_angle": 70.98536149848728,
-          "mouth_width": 183.99147260317443,
-          "mouth_height": 142.7743401779664,
-          "mouth_corner_radius": 23.107606653699712,
+          "mouth_width": 324.97276086314133,
+          "mouth_height": 163.97342316604852,
+          "mouth_corner_radius": 45.13204424550725,
           "source_velocity": 1.4617932872722683,
           "throat_diameter_mm": 25.4,
-          "mouth_width_mm": 183.99147260317443,
-          "mouth_height_mm": 142.7743401779664,
+          "mouth_width_mm": 324.97276086314133,
+          "mouth_height_mm": 163.97342316604852,
           "horn_length_mm": 190.80041199901262,
           "coverage_angle_deg": 70.98536149848728,
           "throat_delta_mm": 0.0,
-          "corner_radius_limit_mm": 71.3871700889832,
-          "mouth_aspect_ratio": 1.2886872555238666,
+          "corner_radius_limit_mm": 81.98671158302426,
+          "mouth_aspect_ratio": 1.9818623932370798,
           "coverage_excess_deg": 0.0,
-          "mouth_to_throat_ratio": 5.621037014880567
+          "mouth_to_throat_ratio": 6.455646581340493
         }
       },
       "feasibility.ok": false,
@@ -142,9 +128,9 @@
       "source_mode": "normal",
       "horn_length": 191.43476007444715,
       "coverage_angle": 59.49040933371825,
-      "mouth_width": 128.51682171494588,
-      "mouth_height": 145.0642007418178,
-      "mouth_corner_radius": 20.51323414817236,
+      "mouth_width": 147.76960747006285,
+      "mouth_height": 182.05299511972146,
+      "mouth_corner_radius": 40.06491044564914,
       "source_velocity": 0.9763391790085696
     },
     "raw_params": {
@@ -165,9 +151,9 @@
         "source_mode": "normal",
         "horn_length": 191.43476007444715,
         "coverage_angle": 59.49040933371825,
-        "mouth_width": 128.51682171494588,
-        "mouth_height": 145.0642007418178,
-        "mouth_corner_radius": 20.51323414817236,
+        "mouth_width": 147.76960747006285,
+        "mouth_height": 182.05299511972146,
+        "mouth_corner_radius": 40.06491044564914,
         "source_velocity": 0.9763391790085696
       },
       "design_space.fixed_params": {
@@ -181,19 +167,19 @@
         "coverage_angle": 59.49040933371825,
         "flare_style": "os",
         "mouth_shape": "rect",
-        "mouth_width": 128.51682171494588,
-        "mouth_height": 145.0642007418178,
-        "mouth_corner_radius": 20.51323414817236,
+        "mouth_width": 147.76960747006285,
+        "mouth_height": 182.05299511972146,
+        "mouth_corner_radius": 40.06491044564914,
         "source_mode": "normal",
         "source_shape": "cap",
         "source_velocity": 0.9763391790085696,
         "auto_enclosure_enabled": false,
         "output_abec_project_enabled": true,
-        "bem_f1": 1500.0,
+        "bem_f1": 200.0,
         "bem_f2": 20000.0,
-        "bem_num_freq": 30,
+        "bem_num_freq": 48,
         "observation_plane": "XZ",
-        "mic_distance": 5.0,
+        "mic_distance": 2.0,
         "symmetry_enabled": true,
         "symmetry_planes": [
           "x",
@@ -210,51 +196,37 @@
         "soft_penalty": 0.0,
         "issues": [
           {
-            "code": "mouth_height_too_large",
+            "code": "horn_too_deep",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 145.0642007418178,
-            "limit": 134.0
+            "message": "Horn length exceeds the product max depth.",
+            "value": 191.43476007444715,
+            "limit": 160.0
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 191.43476007444715,
-            "limit": 150.0
-          },
-          {
-            "code": "mouth_height_too_large",
-            "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 145.0642007418178,
-            "limit": 134.0
-          },
-          {
-            "code": "horn_too_deep",
-            "severity": "hard",
-            "message": "Horn length exceeds the product max depth.",
-            "value": 191.43476007444715,
-            "limit": 150.0
+            "limit": 160.0
           }
         ],
         "derived_metrics": {
           "horn_length": 191.43476007444715,
           "coverage_angle": 59.49040933371825,
-          "mouth_width": 128.51682171494588,
-          "mouth_height": 145.0642007418178,
-          "mouth_corner_radius": 20.51323414817236,
+          "mouth_width": 147.76960747006285,
+          "mouth_height": 182.05299511972146,
+          "mouth_corner_radius": 40.06491044564914,
           "source_velocity": 0.9763391790085696,
           "throat_diameter_mm": 25.4,
-          "mouth_width_mm": 128.51682171494588,
-          "mouth_height_mm": 145.0642007418178,
+          "mouth_width_mm": 147.76960747006285,
+          "mouth_height_mm": 182.05299511972146,
           "horn_length_mm": 191.43476007444715,
           "coverage_angle_deg": 59.49040933371825,
           "throat_delta_mm": 0.0,
-          "corner_radius_limit_mm": 64.25841085747294,
-          "mouth_aspect_ratio": 1.1287565223451799,
+          "corner_radius_limit_mm": 73.88480373503143,
+          "mouth_aspect_ratio": 1.2320056758396967,
           "coverage_excess_deg": 0.0,
-          "mouth_to_throat_ratio": 5.0597173903522
+          "mouth_to_throat_ratio": 5.817701081498538
         }
       },
       "feasibility.ok": false,
@@ -276,9 +248,9 @@
       "source_mode": "normal",
       "horn_length": 186.44185259504374,
       "coverage_angle": 77.00427291570121,
-      "mouth_width": 154.06358922159066,
-      "mouth_height": 143.1546938957919,
-      "mouth_corner_radius": 42.99562000493282,
+      "mouth_width": 229.37386614846923,
+      "mouth_height": 166.9765022695669,
+      "mouth_corner_radius": 83.97582032213441,
       "source_velocity": 1.2302478395070788
     },
     "raw_params": {
@@ -299,9 +271,9 @@
         "source_mode": "normal",
         "horn_length": 186.44185259504374,
         "coverage_angle": 77.00427291570121,
-        "mouth_width": 154.06358922159066,
-        "mouth_height": 143.1546938957919,
-        "mouth_corner_radius": 42.99562000493282,
+        "mouth_width": 229.37386614846923,
+        "mouth_height": 166.9765022695669,
+        "mouth_corner_radius": 83.97582032213441,
         "source_velocity": 1.2302478395070788
       },
       "design_space.fixed_params": {
@@ -315,19 +287,19 @@
         "coverage_angle": 77.00427291570121,
         "flare_style": "os",
         "mouth_shape": "rect",
-        "mouth_width": 154.06358922159066,
-        "mouth_height": 143.1546938957919,
-        "mouth_corner_radius": 42.99562000493282,
+        "mouth_width": 229.37386614846923,
+        "mouth_height": 166.9765022695669,
+        "mouth_corner_radius": 83.97582032213441,
         "source_mode": "normal",
         "source_shape": "cap",
         "source_velocity": 1.2302478395070788,
         "auto_enclosure_enabled": false,
         "output_abec_project_enabled": true,
-        "bem_f1": 1500.0,
+        "bem_f1": 200.0,
         "bem_f2": 20000.0,
-        "bem_num_freq": 30,
+        "bem_num_freq": 48,
         "observation_plane": "XZ",
-        "mic_distance": 5.0,
+        "mic_distance": 2.0,
         "symmetry_enabled": true,
         "symmetry_planes": [
           "x",
@@ -344,51 +316,51 @@
         "soft_penalty": 0.0,
         "issues": [
           {
-            "code": "mouth_height_too_large",
+            "code": "corner_radius_too_large",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 143.1546938957919,
-            "limit": 134.0
+            "message": "Corner radius is too large for the current mouth opening.",
+            "value": 83.97582032213441,
+            "limit": 83.48825113478345
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 186.44185259504374,
-            "limit": 150.0
+            "limit": 160.0
           },
           {
-            "code": "mouth_height_too_large",
+            "code": "corner_radius_too_large",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 143.1546938957919,
-            "limit": 134.0
+            "message": "Corner radius is too large for the current mouth opening.",
+            "value": 83.97582032213441,
+            "limit": 83.48825113478345
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 186.44185259504374,
-            "limit": 150.0
+            "limit": 160.0
           }
         ],
         "derived_metrics": {
           "horn_length": 186.44185259504374,
           "coverage_angle": 77.00427291570121,
-          "mouth_width": 154.06358922159066,
-          "mouth_height": 143.1546938957919,
-          "mouth_corner_radius": 42.99562000493282,
+          "mouth_width": 229.37386614846923,
+          "mouth_height": 166.9765022695669,
+          "mouth_corner_radius": 83.97582032213441,
           "source_velocity": 1.2302478395070788,
           "throat_diameter_mm": 25.4,
-          "mouth_width_mm": 154.06358922159066,
-          "mouth_height_mm": 143.1546938957919,
+          "mouth_width_mm": 229.37386614846923,
+          "mouth_height_mm": 166.9765022695669,
           "horn_length_mm": 186.44185259504374,
           "coverage_angle_deg": 77.00427291570121,
           "throat_delta_mm": 0.0,
-          "corner_radius_limit_mm": 71.57734694789595,
-          "mouth_aspect_ratio": 1.0762035461704091,
+          "corner_radius_limit_mm": 83.48825113478345,
+          "mouth_aspect_ratio": 1.3736894894238951,
           "coverage_excess_deg": 0.0,
-          "mouth_to_throat_ratio": 5.636011570700469
+          "mouth_to_throat_ratio": 6.573878042108934
         }
       },
       "feasibility.ok": false,
@@ -410,9 +382,9 @@
       "source_mode": "normal",
       "horn_length": 183.5329919952027,
       "coverage_angle": 76.80342811084702,
-      "mouth_width": 173.89746305633662,
-      "mouth_height": 143.9749958815962,
-      "mouth_corner_radius": 40.394865757132514,
+      "mouth_width": 292.72937954500765,
+      "mouth_height": 173.4531886714434,
+      "mouth_corner_radius": 78.89622218189945,
       "source_velocity": 1.3843105185800018
     },
     "raw_params": {
@@ -433,9 +405,9 @@
         "source_mode": "normal",
         "horn_length": 183.5329919952027,
         "coverage_angle": 76.80342811084702,
-        "mouth_width": 173.89746305633662,
-        "mouth_height": 143.9749958815962,
-        "mouth_corner_radius": 40.394865757132514,
+        "mouth_width": 292.72937954500765,
+        "mouth_height": 173.4531886714434,
+        "mouth_corner_radius": 78.89622218189945,
         "source_velocity": 1.3843105185800018
       },
       "design_space.fixed_params": {
@@ -449,19 +421,19 @@
         "coverage_angle": 76.80342811084702,
         "flare_style": "os",
         "mouth_shape": "rect",
-        "mouth_width": 173.89746305633662,
-        "mouth_height": 143.9749958815962,
-        "mouth_corner_radius": 40.394865757132514,
+        "mouth_width": 292.72937954500765,
+        "mouth_height": 173.4531886714434,
+        "mouth_corner_radius": 78.89622218189945,
         "source_mode": "normal",
         "source_shape": "cap",
         "source_velocity": 1.3843105185800018,
         "auto_enclosure_enabled": false,
         "output_abec_project_enabled": true,
-        "bem_f1": 1500.0,
+        "bem_f1": 200.0,
         "bem_f2": 20000.0,
-        "bem_num_freq": 30,
+        "bem_num_freq": 48,
         "observation_plane": "XZ",
-        "mic_distance": 5.0,
+        "mic_distance": 2.0,
         "symmetry_enabled": true,
         "symmetry_planes": [
           "x",
@@ -478,51 +450,37 @@
         "soft_penalty": 0.0,
         "issues": [
           {
-            "code": "mouth_height_too_large",
+            "code": "horn_too_deep",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 143.9749958815962,
-            "limit": 134.0
+            "message": "Horn length exceeds the product max depth.",
+            "value": 183.5329919952027,
+            "limit": 160.0
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 183.5329919952027,
-            "limit": 150.0
-          },
-          {
-            "code": "mouth_height_too_large",
-            "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 143.9749958815962,
-            "limit": 134.0
-          },
-          {
-            "code": "horn_too_deep",
-            "severity": "hard",
-            "message": "Horn length exceeds the product max depth.",
-            "value": 183.5329919952027,
-            "limit": 150.0
+            "limit": 160.0
           }
         ],
         "derived_metrics": {
           "horn_length": 183.5329919952027,
           "coverage_angle": 76.80342811084702,
-          "mouth_width": 173.89746305633662,
-          "mouth_height": 143.9749958815962,
-          "mouth_corner_radius": 40.394865757132514,
+          "mouth_width": 292.72937954500765,
+          "mouth_height": 173.4531886714434,
+          "mouth_corner_radius": 78.89622218189945,
           "source_velocity": 1.3843105185800018,
           "throat_diameter_mm": 25.4,
-          "mouth_width_mm": 173.89746305633662,
-          "mouth_height_mm": 143.9749958815962,
+          "mouth_width_mm": 292.72937954500765,
+          "mouth_height_mm": 173.4531886714434,
           "horn_length_mm": 183.5329919952027,
           "coverage_angle_deg": 76.80342811084702,
           "throat_delta_mm": 0.0,
-          "corner_radius_limit_mm": 71.9874979407981,
-          "mouth_aspect_ratio": 1.2078309986502684,
+          "corner_radius_limit_mm": 86.7265943357217,
+          "mouth_aspect_ratio": 1.6876563745362922,
           "coverage_excess_deg": 0.0,
-          "mouth_to_throat_ratio": 5.668306924472291
+          "mouth_to_throat_ratio": 6.828865695726119
         }
       },
       "feasibility.ok": false,
@@ -544,9 +502,9 @@
       "source_mode": "normal",
       "horn_length": 190.98164176179273,
       "coverage_angle": 76.80701455762284,
-      "mouth_width": 180.30045034858273,
-      "mouth_height": 148.6718899726824,
-      "mouth_corner_radius": 39.33744856589339,
+      "mouth_width": 313.1824968004528,
+      "mouth_height": 210.5374705788742,
+      "mouth_corner_radius": 76.83095423026053,
       "source_velocity": 0.7959882307173687
     },
     "raw_params": {
@@ -567,9 +525,9 @@
         "source_mode": "normal",
         "horn_length": 190.98164176179273,
         "coverage_angle": 76.80701455762284,
-        "mouth_width": 180.30045034858273,
-        "mouth_height": 148.6718899726824,
-        "mouth_corner_radius": 39.33744856589339,
+        "mouth_width": 313.1824968004528,
+        "mouth_height": 210.5374705788742,
+        "mouth_corner_radius": 76.83095423026053,
         "source_velocity": 0.7959882307173687
       },
       "design_space.fixed_params": {
@@ -583,19 +541,19 @@
         "coverage_angle": 76.80701455762284,
         "flare_style": "os",
         "mouth_shape": "rect",
-        "mouth_width": 180.30045034858273,
-        "mouth_height": 148.6718899726824,
-        "mouth_corner_radius": 39.33744856589339,
+        "mouth_width": 313.1824968004528,
+        "mouth_height": 210.5374705788742,
+        "mouth_corner_radius": 76.83095423026053,
         "source_mode": "normal",
         "source_shape": "cap",
         "source_velocity": 0.7959882307173687,
         "auto_enclosure_enabled": false,
         "output_abec_project_enabled": true,
-        "bem_f1": 1500.0,
+        "bem_f1": 200.0,
         "bem_f2": 20000.0,
-        "bem_num_freq": 30,
+        "bem_num_freq": 48,
         "observation_plane": "XZ",
-        "mic_distance": 5.0,
+        "mic_distance": 2.0,
         "symmetry_enabled": true,
         "symmetry_planes": [
           "x",
@@ -612,51 +570,37 @@
         "soft_penalty": 0.0,
         "issues": [
           {
-            "code": "mouth_height_too_large",
+            "code": "horn_too_deep",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 148.6718899726824,
-            "limit": 134.0
+            "message": "Horn length exceeds the product max depth.",
+            "value": 190.98164176179273,
+            "limit": 160.0
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 190.98164176179273,
-            "limit": 150.0
-          },
-          {
-            "code": "mouth_height_too_large",
-            "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 148.6718899726824,
-            "limit": 134.0
-          },
-          {
-            "code": "horn_too_deep",
-            "severity": "hard",
-            "message": "Horn length exceeds the product max depth.",
-            "value": 190.98164176179273,
-            "limit": 150.0
+            "limit": 160.0
           }
         ],
         "derived_metrics": {
           "horn_length": 190.98164176179273,
           "coverage_angle": 76.80701455762284,
-          "mouth_width": 180.30045034858273,
-          "mouth_height": 148.6718899726824,
-          "mouth_corner_radius": 39.33744856589339,
+          "mouth_width": 313.1824968004528,
+          "mouth_height": 210.5374705788742,
+          "mouth_corner_radius": 76.83095423026053,
           "source_velocity": 0.7959882307173687,
           "throat_diameter_mm": 25.4,
-          "mouth_width_mm": 180.30045034858273,
-          "mouth_height_mm": 148.6718899726824,
+          "mouth_width_mm": 313.1824968004528,
+          "mouth_height_mm": 210.5374705788742,
           "horn_length_mm": 190.98164176179273,
           "coverage_angle_deg": 76.80701455762284,
           "throat_delta_mm": 0.0,
-          "corner_radius_limit_mm": 74.3359449863412,
-          "mouth_aspect_ratio": 1.2127406894585915,
+          "corner_radius_limit_mm": 105.2687352894371,
+          "mouth_aspect_ratio": 1.4875380422276157,
           "coverage_excess_deg": 0.0,
-          "mouth_to_throat_ratio": 5.853224014672536
+          "mouth_to_throat_ratio": 8.288876794443867
         }
       },
       "feasibility.ok": false,
@@ -678,9 +622,9 @@
       "source_mode": "normal",
       "horn_length": 182.5489089533273,
       "coverage_angle": 74.2165789816524,
-      "mouth_width": 173.9900321506227,
-      "mouth_height": 147.16949170123246,
-      "mouth_corner_radius": 48.49907519068416,
+      "mouth_width": 293.02507379727587,
+      "mouth_height": 198.67529954516425,
+      "mouth_corner_radius": 94.724756231805,
       "source_velocity": 1.1495799519349914
     },
     "raw_params": {
@@ -701,9 +645,9 @@
         "source_mode": "normal",
         "horn_length": 182.5489089533273,
         "coverage_angle": 74.2165789816524,
-        "mouth_width": 173.9900321506227,
-        "mouth_height": 147.16949170123246,
-        "mouth_corner_radius": 48.49907519068416,
+        "mouth_width": 293.02507379727587,
+        "mouth_height": 198.67529954516425,
+        "mouth_corner_radius": 94.724756231805,
         "source_velocity": 1.1495799519349914
       },
       "design_space.fixed_params": {
@@ -717,19 +661,19 @@
         "coverage_angle": 74.2165789816524,
         "flare_style": "os",
         "mouth_shape": "rect",
-        "mouth_width": 173.9900321506227,
-        "mouth_height": 147.16949170123246,
-        "mouth_corner_radius": 48.49907519068416,
+        "mouth_width": 293.02507379727587,
+        "mouth_height": 198.67529954516425,
+        "mouth_corner_radius": 94.724756231805,
         "source_mode": "normal",
         "source_shape": "cap",
         "source_velocity": 1.1495799519349914,
         "auto_enclosure_enabled": false,
         "output_abec_project_enabled": true,
-        "bem_f1": 1500.0,
+        "bem_f1": 200.0,
         "bem_f2": 20000.0,
-        "bem_num_freq": 30,
+        "bem_num_freq": 48,
         "observation_plane": "XZ",
-        "mic_distance": 5.0,
+        "mic_distance": 2.0,
         "symmetry_enabled": true,
         "symmetry_planes": [
           "x",
@@ -746,51 +690,37 @@
         "soft_penalty": 0.0,
         "issues": [
           {
-            "code": "mouth_height_too_large",
+            "code": "horn_too_deep",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 147.16949170123246,
-            "limit": 134.0
+            "message": "Horn length exceeds the product max depth.",
+            "value": 182.5489089533273,
+            "limit": 160.0
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 182.5489089533273,
-            "limit": 150.0
-          },
-          {
-            "code": "mouth_height_too_large",
-            "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 147.16949170123246,
-            "limit": 134.0
-          },
-          {
-            "code": "horn_too_deep",
-            "severity": "hard",
-            "message": "Horn length exceeds the product max depth.",
-            "value": 182.5489089533273,
-            "limit": 150.0
+            "limit": 160.0
           }
         ],
         "derived_metrics": {
           "horn_length": 182.5489089533273,
           "coverage_angle": 74.2165789816524,
-          "mouth_width": 173.9900321506227,
-          "mouth_height": 147.16949170123246,
-          "mouth_corner_radius": 48.49907519068416,
+          "mouth_width": 293.02507379727587,
+          "mouth_height": 198.67529954516425,
+          "mouth_corner_radius": 94.724756231805,
           "source_velocity": 1.1495799519349914,
           "throat_diameter_mm": 25.4,
-          "mouth_width_mm": 173.9900321506227,
-          "mouth_height_mm": 147.16949170123246,
+          "mouth_width_mm": 293.02507379727587,
+          "mouth_height_mm": 198.67529954516425,
           "horn_length_mm": 182.5489089533273,
           "coverage_angle_deg": 74.2165789816524,
           "throat_delta_mm": 0.0,
-          "corner_radius_limit_mm": 73.58474585061623,
-          "mouth_aspect_ratio": 1.1822425296123085,
+          "corner_radius_limit_mm": 99.33764977258213,
+          "mouth_aspect_ratio": 1.4748943349682146,
           "coverage_excess_deg": 0.0,
-          "mouth_to_throat_ratio": 5.794074476426475
+          "mouth_to_throat_ratio": 7.821862186817491
         }
       },
       "feasibility.ok": false,
@@ -812,9 +742,9 @@
       "source_mode": "normal",
       "horn_length": 188.89085442999934,
       "coverage_angle": 68.59090326068215,
-      "mouth_width": 175.10772253382015,
-      "mouth_height": 142.9368098371865,
-      "mouth_corner_radius": 25.741978533169352,
+      "mouth_width": 296.5953217798862,
+      "mouth_height": 165.2562007903847,
+      "mouth_corner_radius": 50.27730182259639,
       "source_velocity": 1.3116875808078512
     },
     "raw_params": {
@@ -835,9 +765,9 @@
         "source_mode": "normal",
         "horn_length": 188.89085442999934,
         "coverage_angle": 68.59090326068215,
-        "mouth_width": 175.10772253382015,
-        "mouth_height": 142.9368098371865,
-        "mouth_corner_radius": 25.741978533169352,
+        "mouth_width": 296.5953217798862,
+        "mouth_height": 165.2562007903847,
+        "mouth_corner_radius": 50.27730182259639,
         "source_velocity": 1.3116875808078512
       },
       "design_space.fixed_params": {
@@ -851,19 +781,19 @@
         "coverage_angle": 68.59090326068215,
         "flare_style": "os",
         "mouth_shape": "rect",
-        "mouth_width": 175.10772253382015,
-        "mouth_height": 142.9368098371865,
-        "mouth_corner_radius": 25.741978533169352,
+        "mouth_width": 296.5953217798862,
+        "mouth_height": 165.2562007903847,
+        "mouth_corner_radius": 50.27730182259639,
         "source_mode": "normal",
         "source_shape": "cap",
         "source_velocity": 1.3116875808078512,
         "auto_enclosure_enabled": false,
         "output_abec_project_enabled": true,
-        "bem_f1": 1500.0,
+        "bem_f1": 200.0,
         "bem_f2": 20000.0,
-        "bem_num_freq": 30,
+        "bem_num_freq": 48,
         "observation_plane": "XZ",
-        "mic_distance": 5.0,
+        "mic_distance": 2.0,
         "symmetry_enabled": true,
         "symmetry_planes": [
           "x",
@@ -880,51 +810,37 @@
         "soft_penalty": 0.0,
         "issues": [
           {
-            "code": "mouth_height_too_large",
+            "code": "horn_too_deep",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 142.9368098371865,
-            "limit": 134.0
+            "message": "Horn length exceeds the product max depth.",
+            "value": 188.89085442999934,
+            "limit": 160.0
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 188.89085442999934,
-            "limit": 150.0
-          },
-          {
-            "code": "mouth_height_too_large",
-            "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 142.9368098371865,
-            "limit": 134.0
-          },
-          {
-            "code": "horn_too_deep",
-            "severity": "hard",
-            "message": "Horn length exceeds the product max depth.",
-            "value": 188.89085442999934,
-            "limit": 150.0
+            "limit": 160.0
           }
         ],
         "derived_metrics": {
           "horn_length": 188.89085442999934,
           "coverage_angle": 68.59090326068215,
-          "mouth_width": 175.10772253382015,
-          "mouth_height": 142.9368098371865,
-          "mouth_corner_radius": 25.741978533169352,
+          "mouth_width": 296.5953217798862,
+          "mouth_height": 165.2562007903847,
+          "mouth_corner_radius": 50.27730182259639,
           "source_velocity": 1.3116875808078512,
           "throat_diameter_mm": 25.4,
-          "mouth_width_mm": 175.10772253382015,
-          "mouth_height_mm": 142.9368098371865,
+          "mouth_width_mm": 296.5953217798862,
+          "mouth_height_mm": 165.2562007903847,
           "horn_length_mm": 188.89085442999934,
           "coverage_angle_deg": 68.59090326068215,
           "throat_delta_mm": 0.0,
-          "corner_radius_limit_mm": 71.46840491859325,
-          "mouth_aspect_ratio": 1.2250708738587228,
+          "corner_radius_limit_mm": 82.62810039519235,
+          "mouth_aspect_ratio": 1.7947606223629424,
           "coverage_excess_deg": 0.0,
-          "mouth_to_throat_ratio": 5.62743345815695
+          "mouth_to_throat_ratio": 6.506149637416721
         }
       },
       "feasibility.ok": false,
@@ -946,9 +862,9 @@
       "source_mode": "normal",
       "horn_length": 176.5777853119545,
       "coverage_angle": 53.683954507798376,
-      "mouth_width": 146.52715626585334,
-      "mouth_height": 147.47965525926583,
-      "mouth_corner_radius": 60.250827228123036,
+      "mouth_width": 205.30017368336613,
+      "mouth_height": 201.12419292033115,
+      "mouth_corner_radius": 117.67739692992781,
       "source_velocity": 1.0320367292541999
     },
     "raw_params": {
@@ -969,9 +885,9 @@
         "source_mode": "normal",
         "horn_length": 176.5777853119545,
         "coverage_angle": 53.683954507798376,
-        "mouth_width": 146.52715626585334,
-        "mouth_height": 147.47965525926583,
-        "mouth_corner_radius": 60.250827228123036,
+        "mouth_width": 205.30017368336613,
+        "mouth_height": 201.12419292033115,
+        "mouth_corner_radius": 117.67739692992781,
         "source_velocity": 1.0320367292541999
       },
       "design_space.fixed_params": {
@@ -985,19 +901,19 @@
         "coverage_angle": 53.683954507798376,
         "flare_style": "os",
         "mouth_shape": "rect",
-        "mouth_width": 146.52715626585334,
-        "mouth_height": 147.47965525926583,
-        "mouth_corner_radius": 60.250827228123036,
+        "mouth_width": 205.30017368336613,
+        "mouth_height": 201.12419292033115,
+        "mouth_corner_radius": 117.67739692992781,
         "source_mode": "normal",
         "source_shape": "cap",
         "source_velocity": 1.0320367292541999,
         "auto_enclosure_enabled": false,
         "output_abec_project_enabled": true,
-        "bem_f1": 1500.0,
+        "bem_f1": 200.0,
         "bem_f2": 20000.0,
-        "bem_num_freq": 30,
+        "bem_num_freq": 48,
         "observation_plane": "XZ",
-        "mic_distance": 5.0,
+        "mic_distance": 2.0,
         "symmetry_enabled": true,
         "symmetry_planes": [
           "x",
@@ -1014,51 +930,51 @@
         "soft_penalty": 0.0,
         "issues": [
           {
-            "code": "mouth_height_too_large",
+            "code": "corner_radius_too_large",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 147.47965525926583,
-            "limit": 134.0
+            "message": "Corner radius is too large for the current mouth opening.",
+            "value": 117.67739692992781,
+            "limit": 100.56209646016558
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 176.5777853119545,
-            "limit": 150.0
+            "limit": 160.0
           },
           {
-            "code": "mouth_height_too_large",
+            "code": "corner_radius_too_large",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 147.47965525926583,
-            "limit": 134.0
+            "message": "Corner radius is too large for the current mouth opening.",
+            "value": 117.67739692992781,
+            "limit": 100.56209646016558
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 176.5777853119545,
-            "limit": 150.0
+            "limit": 160.0
           }
         ],
         "derived_metrics": {
           "horn_length": 176.5777853119545,
           "coverage_angle": 53.683954507798376,
-          "mouth_width": 146.52715626585334,
-          "mouth_height": 147.47965525926583,
-          "mouth_corner_radius": 60.250827228123036,
+          "mouth_width": 205.30017368336613,
+          "mouth_height": 201.12419292033115,
+          "mouth_corner_radius": 117.67739692992781,
           "source_velocity": 1.0320367292541999,
           "throat_diameter_mm": 25.4,
-          "mouth_width_mm": 146.52715626585334,
-          "mouth_height_mm": 147.47965525926583,
+          "mouth_width_mm": 205.30017368336613,
+          "mouth_height_mm": 201.12419292033115,
           "horn_length_mm": 176.5777853119545,
           "coverage_angle_deg": 53.683954507798376,
           "throat_delta_mm": 0.0,
-          "corner_radius_limit_mm": 73.26357813292667,
-          "mouth_aspect_ratio": 1.0065004946365321,
+          "corner_radius_limit_mm": 100.56209646016558,
+          "mouth_aspect_ratio": 1.0207631946331248,
           "coverage_excess_deg": 0.0,
-          "mouth_to_throat_ratio": 5.768785679758006
+          "mouth_to_throat_ratio": 7.918275311824061
         }
       },
       "feasibility.ok": false,
@@ -1080,9 +996,9 @@
       "source_mode": "normal",
       "horn_length": 186.9136282704346,
       "coverage_angle": 79.86352023098748,
-      "mouth_width": 178.64508918215617,
-      "mouth_height": 139.72826511813895,
-      "mouth_corner_radius": 62.16522836667454,
+      "mouth_width": 307.8947624209026,
+      "mouth_height": 139.9231669671246,
+      "mouth_corner_radius": 121.41646165366122,
       "source_velocity": 1.655762629708341
     },
     "raw_params": {
@@ -1103,9 +1019,9 @@
         "source_mode": "normal",
         "horn_length": 186.9136282704346,
         "coverage_angle": 79.86352023098748,
-        "mouth_width": 178.64508918215617,
-        "mouth_height": 139.72826511813895,
-        "mouth_corner_radius": 62.16522836667454,
+        "mouth_width": 307.8947624209026,
+        "mouth_height": 139.9231669671246,
+        "mouth_corner_radius": 121.41646165366122,
         "source_velocity": 1.655762629708341
       },
       "design_space.fixed_params": {
@@ -1119,19 +1035,19 @@
         "coverage_angle": 79.86352023098748,
         "flare_style": "os",
         "mouth_shape": "rect",
-        "mouth_width": 178.64508918215617,
-        "mouth_height": 139.72826511813895,
-        "mouth_corner_radius": 62.16522836667454,
+        "mouth_width": 307.8947624209026,
+        "mouth_height": 139.9231669671246,
+        "mouth_corner_radius": 121.41646165366122,
         "source_mode": "normal",
         "source_shape": "cap",
         "source_velocity": 1.655762629708341,
         "auto_enclosure_enabled": false,
         "output_abec_project_enabled": true,
-        "bem_f1": 1500.0,
+        "bem_f1": 200.0,
         "bem_f2": 20000.0,
-        "bem_num_freq": 30,
+        "bem_num_freq": 48,
         "observation_plane": "XZ",
-        "mic_distance": 5.0,
+        "mic_distance": 2.0,
         "symmetry_enabled": true,
         "symmetry_planes": [
           "x",
@@ -1148,51 +1064,51 @@
         "soft_penalty": 0.0,
         "issues": [
           {
-            "code": "mouth_height_too_large",
+            "code": "corner_radius_too_large",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 139.72826511813895,
-            "limit": 134.0
+            "message": "Corner radius is too large for the current mouth opening.",
+            "value": 121.41646165366122,
+            "limit": 69.9615834835623
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 186.9136282704346,
-            "limit": 150.0
+            "limit": 160.0
           },
           {
-            "code": "mouth_height_too_large",
+            "code": "corner_radius_too_large",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 139.72826511813895,
-            "limit": 134.0
+            "message": "Corner radius is too large for the current mouth opening.",
+            "value": 121.41646165366122,
+            "limit": 69.9615834835623
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 186.9136282704346,
-            "limit": 150.0
+            "limit": 160.0
           }
         ],
         "derived_metrics": {
           "horn_length": 186.9136282704346,
           "coverage_angle": 79.86352023098748,
-          "mouth_width": 178.64508918215617,
-          "mouth_height": 139.72826511813895,
-          "mouth_corner_radius": 62.16522836667454,
+          "mouth_width": 307.8947624209026,
+          "mouth_height": 139.9231669671246,
+          "mouth_corner_radius": 121.41646165366122,
           "source_velocity": 1.655762629708341,
           "throat_diameter_mm": 25.4,
-          "mouth_width_mm": 178.64508918215617,
-          "mouth_height_mm": 139.72826511813895,
+          "mouth_width_mm": 307.8947624209026,
+          "mouth_height_mm": 139.9231669671246,
           "horn_length_mm": 186.9136282704346,
           "coverage_angle_deg": 79.86352023098748,
           "throat_delta_mm": 0.0,
-          "corner_radius_limit_mm": 69.86413255906947,
-          "mouth_aspect_ratio": 1.2785179078199633,
+          "corner_radius_limit_mm": 69.9615834835623,
+          "mouth_aspect_ratio": 2.200455929454795,
           "coverage_excess_deg": 0.0,
-          "mouth_to_throat_ratio": 5.50111279992673
+          "mouth_to_throat_ratio": 5.508786101067898
         }
       },
       "feasibility.ok": false,
@@ -1214,9 +1130,9 @@
       "source_mode": "normal",
       "horn_length": 186.26492803322787,
       "coverage_angle": 52.92574005643779,
-      "mouth_width": 156.58976881507098,
-      "mouth_height": 151.1559185151314,
-      "mouth_corner_radius": 35.89702724131804,
+      "mouth_width": 237.44326330256558,
+      "mouth_height": 230.15009393120954,
+      "mouth_corner_radius": 70.1113813306993,
       "source_velocity": 0.9559911989365741
     },
     "raw_params": {
@@ -1237,9 +1153,9 @@
         "source_mode": "normal",
         "horn_length": 186.26492803322787,
         "coverage_angle": 52.92574005643779,
-        "mouth_width": 156.58976881507098,
-        "mouth_height": 151.1559185151314,
-        "mouth_corner_radius": 35.89702724131804,
+        "mouth_width": 237.44326330256558,
+        "mouth_height": 230.15009393120954,
+        "mouth_corner_radius": 70.1113813306993,
         "source_velocity": 0.9559911989365741
       },
       "design_space.fixed_params": {
@@ -1253,19 +1169,19 @@
         "coverage_angle": 52.92574005643779,
         "flare_style": "os",
         "mouth_shape": "rect",
-        "mouth_width": 156.58976881507098,
-        "mouth_height": 151.1559185151314,
-        "mouth_corner_radius": 35.89702724131804,
+        "mouth_width": 237.44326330256558,
+        "mouth_height": 230.15009393120954,
+        "mouth_corner_radius": 70.1113813306993,
         "source_mode": "normal",
         "source_shape": "cap",
         "source_velocity": 0.9559911989365741,
         "auto_enclosure_enabled": false,
         "output_abec_project_enabled": true,
-        "bem_f1": 1500.0,
+        "bem_f1": 200.0,
         "bem_f2": 20000.0,
-        "bem_num_freq": 30,
+        "bem_num_freq": 48,
         "observation_plane": "XZ",
-        "mic_distance": 5.0,
+        "mic_distance": 2.0,
         "symmetry_enabled": true,
         "symmetry_planes": [
           "x",
@@ -1282,51 +1198,37 @@
         "soft_penalty": 0.0,
         "issues": [
           {
-            "code": "mouth_height_too_large",
+            "code": "horn_too_deep",
             "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 151.1559185151314,
-            "limit": 134.0
+            "message": "Horn length exceeds the product max depth.",
+            "value": 186.26492803322787,
+            "limit": 160.0
           },
           {
             "code": "horn_too_deep",
             "severity": "hard",
             "message": "Horn length exceeds the product max depth.",
             "value": 186.26492803322787,
-            "limit": 150.0
-          },
-          {
-            "code": "mouth_height_too_large",
-            "severity": "hard",
-            "message": "Mouth height exceeds the packaging limit.",
-            "value": 151.1559185151314,
-            "limit": 134.0
-          },
-          {
-            "code": "horn_too_deep",
-            "severity": "hard",
-            "message": "Horn length exceeds the product max depth.",
-            "value": 186.26492803322787,
-            "limit": 150.0
+            "limit": 160.0
           }
         ],
         "derived_metrics": {
           "horn_length": 186.26492803322787,
           "coverage_angle": 52.92574005643779,
-          "mouth_width": 156.58976881507098,
-          "mouth_height": 151.1559185151314,
-          "mouth_corner_radius": 35.89702724131804,
+          "mouth_width": 237.44326330256558,
+          "mouth_height": 230.15009393120954,
+          "mouth_corner_radius": 70.1113813306993,
           "source_velocity": 0.9559911989365741,
           "throat_diameter_mm": 25.4,
-          "mouth_width_mm": 156.58976881507098,
-          "mouth_height_mm": 151.1559185151314,
+          "mouth_width_mm": 237.44326330256558,
+          "mouth_height_mm": 230.15009393120954,
           "horn_length_mm": 186.26492803322787,
           "coverage_angle_deg": 52.92574005643779,
           "throat_delta_mm": 0.0,
-          "corner_radius_limit_mm": 75.5779592575657,
-          "mouth_aspect_ratio": 1.0359486439784733,
+          "corner_radius_limit_mm": 115.07504696560477,
+          "mouth_aspect_ratio": 1.0316887525300595,
           "coverage_excess_deg": 0.0,
-          "mouth_to_throat_ratio": 5.951020413981551
+          "mouth_to_throat_ratio": 9.06102732012636
         }
       },
       "feasibility.ok": false,

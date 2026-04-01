@@ -25,6 +25,7 @@ INSTALL_CONFLICT_SOFT_MARGIN_MM = 5.0
 INSTALL_CONFLICT_HARD_MARGIN_MM = 0.0
 MOUTH_RATIO_HARD_FLOOR = 1.5
 HORN_SHORT_SOFT_PENALTY = 12.0
+PACKAGING_CONFLICT_SHORT_HORN_SOFT_PENALTY = 18.0
 
 
 def _clamp_nonnegative(value: float) -> float:
@@ -216,17 +217,27 @@ def _evaluate_geometry(
                 )
 
     if horn_length is not None and derived.min_horn_length_mm is not None and horn_length < float(derived.min_horn_length_mm):
+        packaging_conflict = bool(
+            derived.max_horn_length_mm is not None
+            and float(derived.max_horn_length_mm) < float(derived.min_horn_length_mm)
+        )
         severity: Literal["hard", "soft"] = "hard" if SHORT_HORN_IS_HARD_FAIL else "soft"
+        if packaging_conflict:
+            severity = "soft"
         _append_issue(
             issues,
             code="horn_too_short",
             severity=severity,
-            message="Horn length is shorter than the derived minimum.",
+            message=(
+                "Horn length is shorter than the derived minimum."
+                if not packaging_conflict
+                else "Horn length is shorter than the derived heuristic minimum, but packaging depth is the limiting constraint."
+            ),
             value=horn_length,
             limit=derived.min_horn_length_mm,
         )
         if severity == "soft":
-            soft_penalty += HORN_SHORT_SOFT_PENALTY
+            soft_penalty += PACKAGING_CONFLICT_SHORT_HORN_SOFT_PENALTY if packaging_conflict else HORN_SHORT_SOFT_PENALTY
     if horn_length is not None and derived.max_horn_length_mm is not None and horn_length > float(derived.max_horn_length_mm):
         _append_issue(
             issues,

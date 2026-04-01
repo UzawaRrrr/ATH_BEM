@@ -14,8 +14,13 @@ from optimizer.driver_profile import (  # noqa: E402
     ProductConstraints,
     derive_driver_constraints,
     dump_driver_profile,
+    infer_driver_profile_from_recipe,
+    infer_product_constraints_from_recipe,
+    is_recipe_inferred_constraints,
     load_driver_profile,
+    relax_inferred_product_constraints,
 )
+from ath_gui.domain.design_recipe import DesignRecipe  # noqa: E402
 
 
 def _make_profile() -> DriverProfile:
@@ -69,8 +74,46 @@ def test_driver_profile_json_roundtrip_and_derive() -> None:
         assert derived.max_mouth_width_mm is not None and derived.max_mouth_width_mm < 320.0
 
 
+def test_coarse_relaxed_inferred_constraints_do_not_lock_the_design_space() -> None:
+    recipe = DesignRecipe(
+        case_name="inferred_lock_case",
+        throat_diameter=25.0,
+        horn_length=160.0,
+        coverage_angle=90.0,
+        mouth_width=140.0,
+        mouth_height=170.0,
+        mouth_corner_radius=14.0,
+        bem_f1=200.0,
+        bem_f2=12000.0,
+        bem_num_freq=8,
+    )
+    profile = infer_driver_profile_from_recipe(recipe)
+    inferred = infer_product_constraints_from_recipe(recipe)
+    original = derive_driver_constraints(profile, inferred)
+    relaxed = relax_inferred_product_constraints(inferred, stage="coarse")
+    relaxed_derived = derive_driver_constraints(profile, relaxed)
+
+    assert is_recipe_inferred_constraints(inferred) is True
+    assert inferred.target_low_freq_hz == 200.0
+    assert original.min_mouth_width_mm is not None and original.max_mouth_width_mm is not None
+    assert original.min_mouth_width_mm > original.max_mouth_width_mm
+    assert original.min_horn_length_mm is not None and original.max_horn_length_mm is not None
+    assert original.min_horn_length_mm > original.max_horn_length_mm
+
+    assert relaxed.target_low_freq_hz is None
+    assert relaxed.max_baffle_width_mm is not None and inferred.max_baffle_width_mm is not None
+    assert relaxed.max_baffle_width_mm > inferred.max_baffle_width_mm
+    assert relaxed.max_depth_mm is not None and inferred.max_depth_mm is not None
+    assert relaxed.max_depth_mm > inferred.max_depth_mm
+    assert relaxed_derived.min_mouth_width_mm is not None and relaxed_derived.max_mouth_width_mm is not None
+    assert relaxed_derived.min_mouth_width_mm < relaxed_derived.max_mouth_width_mm
+    assert relaxed_derived.min_horn_length_mm is not None and relaxed_derived.max_horn_length_mm is not None
+    assert relaxed_derived.min_horn_length_mm < relaxed_derived.max_horn_length_mm
+
+
 def _run_all() -> None:
     test_driver_profile_json_roundtrip_and_derive()
+    test_coarse_relaxed_inferred_constraints_do_not_lock_the_design_space()
 
 
 if __name__ == "__main__":

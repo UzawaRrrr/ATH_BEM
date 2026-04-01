@@ -1,0 +1,29 @@
+{
+  "recipe_case_name": "Autima_1_8",
+  "stage": "coarse",
+  "target_bw_h": 70.0,
+  "target_bw_v": 60.0,
+  "planes": [
+    "XZ",
+    "YZ"
+  ],
+  "study_name": "Autima_1_8_gui",
+  "storage": null,
+  "seed": 42,
+  "trials": 10,
+  "driver_profile_path": null,
+  "product_constraints": {
+    "max_baffle_width_mm": null,
+    "max_baffle_height_mm": null,
+    "max_depth_mm": null,
+    "min_wall_thickness_mm": null,
+    "target_bw_h_deg": null,
+    "target_bw_v_deg": null,
+    "target_low_freq_hz": 1500.0,
+    "target_high_freq_hz": 15000.0,
+    "symmetric_horizontal": true,
+    "symmetric_vertical": true,
+    "notes": []
+  },
+  "base_recipe_source": "current_gui_state"
+}
