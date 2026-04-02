@@ -396,17 +396,22 @@ class OptimizationController:
             )
             write_study_artifacts(result.study, result.study_dir, metadata=study_metadata)
             self.latest_study_dir = result.study_dir
-            best_trial = result.study.best_trial
-            summary = self._build_best_trial_summary(
-                number=best_trial.number,
-                value=best_trial.value,
-                params=self._extract_display_params_from_frozen_trial(best_trial),
-                raw_params=dict(best_trial.params),
-                user_attrs=dict(best_trial.user_attrs),
-            )
-            self.best_trial_summary = summary
-            self._completed_best_trial_summary = dict(summary)
-            self.app.after(0, lambda: self._apply_final_success(result.study.study_name, result.study.best_value))
+            try:
+                best_trial = result.study.best_trial
+            except Exception:
+                best_trial = None
+            best_value = None if best_trial is None else best_trial.value
+            if best_trial is not None:
+                summary = self._build_best_trial_summary(
+                    number=best_trial.number,
+                    value=best_trial.value,
+                    params=self._extract_display_params_from_frozen_trial(best_trial),
+                    raw_params=dict(best_trial.params),
+                    user_attrs=dict(best_trial.user_attrs),
+                )
+                self.best_trial_summary = summary
+                self._completed_best_trial_summary = dict(summary)
+            self.app.after(0, lambda value=best_value: self._apply_final_success(result.study.study_name, value))
         except Exception as exc:
             # Capture the exception object eagerly for Tk's deferred callback.
             # Python 3.13 clears `exc` at the end of the except block, so a
@@ -434,6 +439,39 @@ class OptimizationController:
                 self.app.append_optimizer_log(f"[study] constraint strategy={strategy}")
             for note in payload.get("constraint_warnings", []) or []:
                 self.app.append_optimizer_log(f"[study] constraint note: {note}")
+            self.app._refresh_status_card_summary()
+            return
+
+        if event == "study_audit":
+            audit = payload.get("audit", {}) or {}
+            passed = bool(payload.get("passed", False))
+            self.app.append_optimizer_log(f"[study] pre-study audit passed={passed}")
+            if isinstance(audit, dict):
+                if bool(audit.get("constraints_are_inferred_fallback", False)):
+                    self.app.append_optimizer_log("[study] audit note: using recipe-inferred fallback constraints.")
+                for item in audit.get("warnings", []) or []:
+                    if isinstance(item, dict):
+                        self.app.append_optimizer_log(
+                            f"[study] audit warning: {item.get('code', 'unknown')} | {item.get('message', '')}"
+                        )
+                for item in audit.get("conflicts", []) or []:
+                    if isinstance(item, dict):
+                        self.app.append_optimizer_log(
+                            f"[study] audit conflict: {item.get('code', 'unknown')} | {item.get('message', '')}"
+                        )
+            self.app._refresh_status_card_summary()
+            return
+
+        if event == "study_aborted":
+            self.app.optimizer_status_var.set("Study aborted before trials")
+            self.app.append_optimizer_log(f"[study] aborted reason={payload.get('reason', 'unknown')}")
+            audit = payload.get("audit", {}) or {}
+            if isinstance(audit, dict):
+                summary = audit.get("derived_constraint_summary", {})
+                if isinstance(summary, dict):
+                    self.app.append_optimizer_log(
+                        f"[study] audit derived summary={json.dumps(summary, ensure_ascii=True, sort_keys=True)}"
+                    )
             self.app._refresh_status_card_summary()
             return
 
@@ -524,7 +562,13 @@ class OptimizationController:
             self.app._refresh_status_card_summary()
             return
 
-    def _apply_final_success(self, study_name: str, best_value: float) -> None:
+    def _apply_final_success(self, study_name: str, best_value: float | None) -> None:
+        if best_value is None:
+            self.app.optimizer_status_var.set(f"Study ended: {study_name}")
+            self.app.status_var.set("最佳化已結束，但沒有任何 trial 執行。")
+            self.app._select_workspace_tab("Study")
+            self.app._refresh_status_card_summary()
+            return
         self.app.optimizer_status_var.set(f"Study completed: {study_name}")
         self.app.status_var.set(f"最佳化完成，best score = {best_value:.6f}")
         self.app._select_workspace_tab("Study")

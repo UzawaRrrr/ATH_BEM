@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Iterable
+from typing import Any, Iterable, Mapping
 
 import numpy as np
 
@@ -82,6 +82,108 @@ def normalize_component_value(value: float, scale: float, *, minimum: float = 0.
         return float(fallback)
     effective_scale = float(scale) if np.isfinite(scale) and scale > _FLOAT_EPS else 1.0
     return float(max(float(value), minimum) / effective_scale)
+
+
+def _safe_positive_tolerance(value: Any) -> float | None:
+    try:
+        tolerance = float(value)
+    except Exception:
+        return None
+    if not np.isfinite(tolerance) or tolerance <= 0.0:
+        return None
+    return tolerance
+
+
+def smooth_preference_penalty(delta: float, tolerance: float) -> float:
+    """Return a smooth pseudo-Huber-style penalty around a preferred value.
+
+    The penalty behaves quadratically near the target and transitions toward a
+    linear growth for larger deviations, which keeps geometry preferences soft
+    rather than acting like hard thresholds.
+    """
+    scale = max(float(tolerance), _FLOAT_EPS)
+    normalized_delta = abs(float(delta)) / scale
+    return float(np.sqrt(1.0 + normalized_delta * normalized_delta) - 1.0)
+
+
+def geometry_preference_penalty(
+    *,
+    actual_geometry: Mapping[str, Any] | None,
+    preferences: Mapping[str, Any] | None,
+) -> tuple[float, dict[str, float]]:
+    """Compute a smooth geometry-preference regularization term.
+
+    The returned scalar is a weighted mean of per-dimension pseudo-Huber
+    penalties. Missing preference dimensions simply do not participate.
+    """
+    geometry = dict(actual_geometry or {})
+    preference_mapping = dict(preferences or {})
+    if not geometry or not preference_mapping:
+        return (0.0, {})
+
+    dims = (
+        (
+            "horn_length",
+            "preferred_horn_length_mm",
+            "horn_length_tolerance_mm",
+            "horn_length_weight",
+        ),
+        (
+            "mouth_width",
+            "preferred_mouth_width_mm",
+            "mouth_width_tolerance_mm",
+            "mouth_width_weight",
+        ),
+        (
+            "mouth_height",
+            "preferred_mouth_height_mm",
+            "mouth_height_tolerance_mm",
+            "mouth_height_weight",
+        ),
+    )
+    details: dict[str, float] = {}
+    weighted_sum = 0.0
+    weight_total = 0.0
+    used_dimensions = 0
+    for actual_key, preferred_key, tolerance_key, weight_key in dims:
+        try:
+            actual = float(geometry.get(actual_key))
+            preferred = float(preference_mapping.get(preferred_key))
+        except Exception:
+            continue
+        if not (np.isfinite(actual) and np.isfinite(preferred)):
+            continue
+        tolerance = _safe_positive_tolerance(preference_mapping.get(tolerance_key))
+        if tolerance is None:
+            continue
+        try:
+            weight = float(preference_mapping.get(weight_key, 1.0))
+        except Exception:
+            weight = 1.0
+        if not np.isfinite(weight) or weight <= 0.0:
+            continue
+
+        delta_mm = actual - preferred
+        raw_penalty = smooth_preference_penalty(delta_mm, tolerance)
+        normalized_delta = abs(delta_mm) / tolerance
+        weighted_sum += weight * raw_penalty
+        weight_total += weight
+        used_dimensions += 1
+        details[f"preference.{actual_key}.actual_mm"] = float(actual)
+        details[f"preference.{actual_key}.preferred_mm"] = float(preferred)
+        details[f"preference.{actual_key}.delta_mm"] = float(delta_mm)
+        details[f"preference.{actual_key}.tolerance_mm"] = float(tolerance)
+        details[f"preference.{actual_key}.weight"] = float(weight)
+        details[f"preference.{actual_key}.normalized_delta"] = float(normalized_delta)
+        details[f"preference.{actual_key}.raw"] = float(raw_penalty)
+
+    if weight_total <= 0.0:
+        return (0.0, details)
+    aggregate = float(weighted_sum / weight_total)
+    details["preference.dimension_count"] = float(used_dimensions)
+    details["preference.weight_total"] = float(weight_total)
+    details["preference.weighted_mean_raw"] = float(aggregate)
+    return (aggregate, details)
 
 
 def select_freq_mask(freqs_hz: np.ndarray, freq_band_hz: tuple[float, float]) -> np.ndarray:
@@ -680,6 +782,9 @@ def aggregate_score(
         "hom": float(components.get("hom", 0.0) if np.isfinite(components.get("hom", 0.0)) else 0.0),
         "room": float(components.get("room", 0.0) if np.isfinite(components.get("room", 0.0)) else 0.0),
         "di": float(components.get("di", 0.0) if np.isfinite(components.get("di", 0.0)) else 0.0),
+        "preference": float(
+            components.get("preference", 0.0) if np.isfinite(components.get("preference", 0.0)) else 0.0
+        ),
         "load": float(components.get("load", 0.0) if np.isfinite(components.get("load", 0.0)) else 0.0),
         "geom": float(components.get("geom", 0.0) if np.isfinite(components.get("geom", 0.0)) else 0.0),
     }
@@ -691,6 +796,7 @@ def aggregate_score(
         "hom": config.weights.w_hom * stage_factors["hom"] * safe_components["hom"],
         "room": config.weights.w_room * stage_factors["room"] * safe_components["room"],
         "di": config.weights.w_di * stage_factors["di"] * safe_components["di"],
+        "preference": config.weights.w_pref * stage_factors["pref"] * safe_components["preference"],
         "load": config.weights.w_load * stage_factors["load"] * safe_components["load"],
         "geom": config.weights.w_geom * stage_factors["geom"] * safe_components["geom"],
     }
@@ -713,6 +819,7 @@ def aggregate_score(
         hom_error=safe_components["hom"],
         room_error=safe_components["room"],
         di_error=safe_components["di"],
+        preference_error=safe_components["preference"],
         load_error=safe_components["load"],
         geom_error=safe_components["geom"],
         details=merged_details,

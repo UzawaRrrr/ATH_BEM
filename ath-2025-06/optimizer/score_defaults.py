@@ -17,6 +17,9 @@ DEFAULT_SCORE_WEIGHTS = ScoreWeights(
     w_room=0.3,
     # DI is a smoothness helper, not an absolute target template.
     w_di=0.35,
+    # Geometry preferences are soft regularization only; they should never
+    # overpower coverage tracking or force hard geometry limits.
+    w_pref=0.12,
     w_load=0.15,
     w_geom=0.25,
 )
@@ -35,6 +38,7 @@ DEFAULT_COMPONENT_NORMALIZERS: dict[str, float] = {
     "hom_db": 2.5,
     "room_db": 2.0,
     "di_db": 2.0,
+    "preference_penalty": 1.0,
     "load_ratio": 1.0,
     "geom_penalty": 100.0,
     "hard_penalty": 1.0,
@@ -50,6 +54,7 @@ DEFAULT_STAGE_FACTORS: dict[str, dict[str, float]] = {
         "hom": 0.0,
         "room": 0.0,
         "di": 0.0,
+        "pref": 0.0,
         "load": 0.0,
         "geom": 0.0,
     },
@@ -62,6 +67,7 @@ DEFAULT_STAGE_FACTORS: dict[str, dict[str, float]] = {
         "hom": 0.3,
         "room": 0.2,
         "di": 0.5,
+        "pref": 0.2,
         "load": 0.0,
         "geom": 0.0,
     },
@@ -74,6 +80,7 @@ DEFAULT_STAGE_FACTORS: dict[str, dict[str, float]] = {
         "hom": 0.6,
         "room": 0.5,
         "di": 1.0,
+        "pref": 0.35,
         "load": 0.35,
         "geom": 0.35,
     },

@@ -110,7 +110,7 @@ def test_conflicting_max_depth_caps_horn_length_search_window() -> None:
     horn = space.variables["horn_length"]
     assert float(horn.high or 0.0) <= 160.0 + 1.0e-9
     assert float(horn.low or 0.0) < float(horn.high or 0.0)
-    assert any("capped window up to max_depth" in note for note in space.notes)
+    assert any("Horn-length heuristic minimum exceeds max depth" in note for note in space.notes)
 
 
 def test_initial_seed_stays_inside_design_space_and_roundtrips() -> None:
@@ -230,7 +230,13 @@ def test_study_runner_smoke_blocks_infeasible_trials_and_runs_feasible_trials() 
             },
         )
         assert invalid_runner.calls == 0
-        assert invalid_result.study.trials[0].user_attrs["feasibility.hard_fail"] is True
+        invalid_user_attrs = invalid_result.study.trials[0].user_attrs
+        assert invalid_user_attrs["feasibility.hard_fail"] is True
+        assert invalid_user_attrs["flags.preflight_hard_fail"] is True
+        assert invalid_user_attrs["flags.constraint_conflict"] is True
+        assert invalid_user_attrs["flags.missing_required_param"] is False
+        assert invalid_user_attrs["flags.any_missing"] is False
+        assert invalid_user_attrs["flags.catastrophic"] is True
 
         valid_runner = _FakeRunner()
         valid_result = run_optuna_study(

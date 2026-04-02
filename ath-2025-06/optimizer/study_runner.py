@@ -13,6 +13,7 @@ import optuna
 from ath_gui.domain.design_recipe import DesignRecipe
 
 from .design_space import DesignSpace, build_design_space, build_initial_seed_params
+from .conflict_policy import build_preflight_flags, resolve_conflict_policy
 from .driver_profile import (
     DriverProfile,
     ProductConstraints,
@@ -31,7 +32,9 @@ from .feasibility import (
     validate_recipe_against_driver,
 )
 from .objective import optuna_objective_wrapper
+from .prestudy_audit import run_prestudy_audit
 from .score_defaults import build_default_objective_config
+from .study_definition import CanonicalTrialRecipeBuilder, StudyDefinition, adapt_legacy_study_inputs
 
 
 SuggestFunction = Callable[[optuna.trial.Trial, DesignRecipe], dict[str, Any]]
@@ -126,6 +129,10 @@ class _DecodedParamsTrialProxy:
 
     def set_user_attr(self, key: str, value: Any) -> None:
         self._trial.set_user_attr(key, value)
+
+    @property
+    def user_attrs(self) -> dict[str, Any]:
+        return dict(getattr(self._trial, "user_attrs", {}) or {})
 
 
 def _json_safe(value: Any) -> Any:
@@ -259,19 +266,36 @@ def _dedupe_text(items: list[str]) -> list[str]:
 def _resolve_constraint_context(
     config: OptunaStudyConfig,
     base_recipe: DesignRecipe,
-) -> tuple[DriverProfile, ProductConstraints, DesignSpace, list[str], str]:
+) -> tuple[StudyDefinition, DriverProfile, ProductConstraints, DesignSpace, list[str], str]:
     driver_profile = _resolve_driver_profile(config, base_recipe)
     product_constraints = _resolve_product_constraints(config, base_recipe)
     inferred_constraints = config.product_constraints is None and is_recipe_inferred_constraints(product_constraints)
     strategy = "explicit_or_user_constraints"
     if inferred_constraints:
         strategy = "recipe_inferred"
-    if inferred_constraints and config.stage == "coarse":
+    inferred_decision = resolve_conflict_policy(
+        "inferred_constraints",
+        stage=config.stage,
+        constraints_are_inferred_fallback=inferred_constraints,
+    )
+    if inferred_decision.strategy == "relax_coarse_only":
         product_constraints = relax_inferred_product_constraints(product_constraints, stage=config.stage)
         strategy = "recipe_inferred_relaxed_for_coarse"
 
-    design_space = build_design_space(driver_profile, product_constraints, base_recipe=base_recipe)
-    if inferred_constraints and config.stage == "coarse":
+    study_definition = adapt_legacy_study_inputs(
+        legacy_config=config,
+        base_recipe=base_recipe,
+        driver_profile=driver_profile,
+        product_constraints=product_constraints,
+    )
+    legacy_product_constraints = study_definition.to_legacy_product_constraints()
+    design_space = build_design_space(driver_profile, legacy_product_constraints, base_recipe=base_recipe, conflict_stage=config.stage)
+    horn_conflict_decision = resolve_conflict_policy(
+        "horn_length_vs_max_depth",
+        stage=config.stage,
+        constraints_are_inferred_fallback=inferred_constraints,
+    )
+    if horn_conflict_decision.strategy != "fail_fast":
         derived = design_space.derived
         if (
             derived.max_horn_length_mm is not None
@@ -283,11 +307,19 @@ def _resolve_constraint_context(
                 stage=config.stage,
                 min_depth_floor_mm=float(derived.min_horn_length_mm),
             )
-            design_space = build_design_space(driver_profile, product_constraints, base_recipe=base_recipe)
+            study_definition = adapt_legacy_study_inputs(
+                legacy_config=config,
+                base_recipe=base_recipe,
+                driver_profile=driver_profile,
+                product_constraints=product_constraints,
+            )
+            legacy_product_constraints = study_definition.to_legacy_product_constraints()
+            design_space = build_design_space(driver_profile, legacy_product_constraints, base_recipe=base_recipe, conflict_stage=config.stage)
             strategy = "recipe_inferred_relaxed_for_coarse_conflict"
 
-    constraint_warnings = _dedupe_text(list(product_constraints.notes) + list(design_space.notes))
-    return driver_profile, product_constraints, design_space, constraint_warnings, strategy
+    effective_constraints = study_definition.to_legacy_product_constraints()
+    constraint_warnings = _dedupe_text(list(effective_constraints.notes) + list(design_space.notes))
+    return study_definition, driver_profile, effective_constraints, design_space, constraint_warnings, strategy
 
 
 def _recipe_to_design_space_params(recipe: DesignRecipe, design_space: DesignSpace) -> dict[str, Any]:
@@ -310,8 +342,14 @@ def _recipe_to_design_space_params(recipe: DesignRecipe, design_space: DesignSpa
     return params
 
 
-def _enqueue_if_feasible(study: optuna.Study, design_space: DesignSpace, params: dict[str, Any]) -> None:
-    feasibility = validate_params_against_design_space(params, design_space)
+def _enqueue_if_feasible(
+    study: optuna.Study,
+    design_space: DesignSpace,
+    params: dict[str, Any],
+    *,
+    conflict_stage: str | None = None,
+) -> None:
+    feasibility = validate_params_against_design_space(params, design_space, conflict_stage=conflict_stage)
     if feasibility.hard_fail:
         return
     study.enqueue_trial(design_space.to_optuna_params(params))
@@ -327,7 +365,7 @@ def run_optuna_study(
     stop_event: Any | None = None,
 ) -> StudyRunResult:
     """Run an Optuna study and emit coarse progress events for GUI/CLI consumers."""
-    driver_profile, product_constraints, design_space, constraint_warnings, constraint_strategy = _resolve_constraint_context(
+    study_definition, driver_profile, product_constraints, design_space, constraint_warnings, constraint_strategy = _resolve_constraint_context(
         config,
         base_recipe,
     )
@@ -339,6 +377,11 @@ def run_optuna_study(
         objective_config,
         target_bw_h_deg=config.target_bw_h_deg if config.target_bw_h_deg is not None else objective_config.target_bw_h_deg,
         target_bw_v_deg=config.target_bw_v_deg if config.target_bw_v_deg is not None else objective_config.target_bw_v_deg,
+    )
+    canonical_recipe_builder = CanonicalTrialRecipeBuilder(
+        study_definition=study_definition,
+        driver_profile=driver_profile,
+        base_template=base_recipe,
     )
 
     study_name = str(config.study_name).strip() or f"{base_recipe.case_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -353,11 +396,6 @@ def run_optuna_study(
         load_if_exists=bool(storage),
     )
 
-    seed_params = build_initial_seed_params(driver_profile, product_constraints, base_recipe=base_recipe)
-    _enqueue_if_feasible(study, design_space, seed_params)
-    if config.enqueue_base:
-        _enqueue_if_feasible(study, design_space, _recipe_to_design_space_params(base_recipe, design_space))
-
     def emit(event: str, **payload: Any) -> None:
         if on_event is None:
             return
@@ -371,10 +409,47 @@ def run_optuna_study(
         stage=config.stage,
         driver_profile=_json_safe(driver_profile.to_dict()),
         product_constraints=_json_safe(product_constraints.to_dict()),
+        study_environment=_json_safe(study_definition.study_environment.to_dict()),
+        hard_constraints=_json_safe(study_definition.hard_constraints.to_dict()),
+        acoustic_targets=_json_safe(study_definition.acoustic_targets.to_dict()),
+        geometry_preferences=_json_safe(study_definition.geometry_preferences.to_dict()),
+        search_policy=_json_safe(study_definition.search_policy.to_dict()),
+        study_definition=_json_safe(study_definition.to_dict()),
         design_space_notes=list(design_space.notes),
         constraint_strategy=str(constraint_strategy),
         constraint_warnings=list(constraint_warnings),
     )
+
+    audit = run_prestudy_audit(
+        study_definition=study_definition,
+        driver_profile=driver_profile,
+        product_constraints=product_constraints,
+        derived_constraints=design_space.derived,
+        design_space=design_space,
+        canonical_recipe_builder=canonical_recipe_builder,
+        stage=config.stage,
+        constraint_strategy=constraint_strategy,
+    )
+    emit(
+        "study_audit",
+        passed=bool(audit.passed),
+        audit=_json_safe(audit.to_dict()),
+    )
+    if not audit.passed:
+        emit(
+            "study_aborted",
+            reason="prestudy_audit_failed",
+            audit=_json_safe(audit.to_dict()),
+            study_name=study_name,
+            study_dir=str(study_dir),
+            completed_trials=0,
+        )
+        return StudyRunResult(study=study, study_dir=study_dir, config=replace(config, study_name=study_name, study_dir=study_dir))
+
+    seed_params = build_initial_seed_params(driver_profile, product_constraints, base_recipe=base_recipe)
+    _enqueue_if_feasible(study, design_space, seed_params, conflict_stage=config.stage)
+    if config.enqueue_base:
+        _enqueue_if_feasible(study, design_space, _recipe_to_design_space_params(base_recipe, design_space), conflict_stage=config.stage)
 
     def objective(trial: optuna.trial.Trial) -> float:
         params = design_space.sample_dict_from_optuna_trial(trial) if use_design_space_sampler else effective_suggest(trial, base_recipe)
@@ -392,9 +467,10 @@ def run_optuna_study(
             params=dict(params),
         )
 
-        params_result = validate_params_against_design_space(params, design_space)
-        recipe = design_space.apply_to_recipe(base_recipe, params)
-        recipe_result = validate_recipe_against_driver(recipe, driver_profile, product_constraints)
+        params_result = validate_params_against_design_space(params, design_space, conflict_stage=config.stage)
+        recipe_build = canonical_recipe_builder.build(params)
+        recipe = recipe_build.recipe
+        recipe_result = validate_recipe_against_driver(recipe, driver_profile, product_constraints, conflict_stage=config.stage)
         combined_result = merge_feasibility_results(params_result, recipe_result)
         pre_score_penalty = feasibility_penalty(
             combined_result,
@@ -403,6 +479,8 @@ def run_optuna_study(
         )
 
         trial.set_user_attr("recipe.preview", _json_safe(recipe.to_dict()))
+        trial.set_user_attr("recipe.canonical_sources", _json_safe(recipe_build.source_summary))
+        trial.set_user_attr("geometry_preferences", _json_safe(study_definition.geometry_preferences.to_dict()))
         trial.set_user_attr("feasibility", _serialize_feasibility(combined_result))
         trial.set_user_attr("feasibility.ok", combined_result.ok)
         trial.set_user_attr("feasibility.hard_fail", combined_result.hard_fail)
@@ -410,10 +488,11 @@ def run_optuna_study(
         trial.set_user_attr("score.feasibility_soft", float(combined_result.soft_penalty))
 
         if combined_result.hard_fail:
+            preflight_flags = build_preflight_flags(hard_fail=combined_result.hard_fail, issues=combined_result.issues)
             trial.set_user_attr("score.objective_raw", None)
             trial.set_user_attr("score.total", float(pre_score_penalty))
-            trial.set_user_attr("flags.any_missing", True)
-            trial.set_user_attr("flags.catastrophic", True)
+            for key, flag_value in preflight_flags.items():
+                trial.set_user_attr(f"flags.{key}", bool(flag_value))
             emit(
                 "trial_scored",
                 trial_number=int(trial.number),
@@ -421,7 +500,7 @@ def run_optuna_study(
                 catastrophic=True,
                 catastrophic_score=float(objective_config.catastrophic_score),
                 feasibility=_serialize_feasibility(combined_result),
-                flags={"any_missing": True, "catastrophic": True},
+                flags=dict(preflight_flags),
                 recipe_preview=_json_safe(recipe.to_dict()),
                 score_pre_feasibility=float(pre_score_penalty),
                 score_objective_raw=None,
@@ -431,6 +510,9 @@ def run_optuna_study(
             return float(pre_score_penalty)
 
         proxy_trial = _DecodedParamsTrialProxy(trial, params)
+        trial.set_user_attr("flags.preflight_hard_fail", False)
+        trial.set_user_attr("flags.constraint_conflict", False)
+        trial.set_user_attr("flags.missing_required_param", False)
         raw_score = optuna_objective_wrapper(proxy_trial, case_runner=case_runner, config=objective_config)
         total = float(pre_score_penalty) + float(raw_score)
         trial.set_user_attr("score.objective_raw", float(raw_score))

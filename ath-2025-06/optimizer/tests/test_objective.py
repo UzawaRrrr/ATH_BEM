@@ -100,6 +100,7 @@ def test_stage_weighting_matches_stage_schedule() -> None:
             + config.weights.w_hom * factors["hom"] * score.hom_error
             + config.weights.w_room * factors["room"] * score.room_error
             + config.weights.w_di * factors["di"] * score.di_error
+            + config.weights.w_pref * factors["pref"] * score.preference_error
             + config.weights.w_load * factors["load"] * score.load_error
             + config.weights.w_geom * factors["geom"] * score.geom_error
         )
@@ -109,6 +110,7 @@ def test_stage_weighting_matches_stage_schedule() -> None:
 def test_default_weights_shift_focus_to_coverage_and_di_over_cd() -> None:
     assert DEFAULT_SCORE_WEIGHTS.w_cov > DEFAULT_SCORE_WEIGHTS.w_di
     assert DEFAULT_SCORE_WEIGHTS.w_di > DEFAULT_SCORE_WEIGHTS.w_cd
+    assert DEFAULT_SCORE_WEIGHTS.w_cov > DEFAULT_SCORE_WEIGHTS.w_pref
     assert DEFAULT_SCORE_WEIGHTS.w_hom > DEFAULT_SCORE_WEIGHTS.w_cd
 
 
@@ -122,6 +124,7 @@ def test_stage_contributions_prioritize_coverage_then_di_then_cd() -> None:
                 "hom": 1.0,
                 "room": 1.0,
                 "di": 1.0,
+                "preference": 1.0,
                 "load": 1.0,
                 "geom": 1.0,
             },
@@ -132,17 +135,29 @@ def test_stage_contributions_prioritize_coverage_then_di_then_cd() -> None:
         if stage == "coarse":
             assert contributions["contribution.cd"] == 0.0
             assert contributions["contribution.di"] == 0.0
+            assert contributions["contribution.preference"] == 0.0
         elif stage == "refine":
             assert contributions["contribution.di"] > contributions["contribution.cd"]
+            assert contributions["contribution.coverage"] > contributions["contribution.preference"]
         else:
             assert contributions["contribution.di"] > contributions["contribution.cd"]
             assert contributions["contribution.coverage"] > contributions["contribution.di"]
+            assert contributions["contribution.coverage"] > contributions["contribution.preference"]
 
 
 class _FakeTrial:
     def __init__(self) -> None:
         self.params: dict[str, float] = {"flare": 1.1}
-        self.user_attrs: dict[str, object] = {}
+        self.user_attrs: dict[str, object] = {
+            "geometry_preferences": {
+                "preferred_horn_length_mm": 180.0,
+                "horn_length_tolerance_mm": 20.0,
+                "horn_length_weight": 1.0,
+            },
+            "recipe.preview": {
+                "horn_length": 190.0,
+            },
+        }
 
     def set_user_attr(self, key: str, value: object) -> None:
         self.user_attrs[key] = value
@@ -168,5 +183,79 @@ def test_optuna_objective_wrapper_records_trial_attrs() -> None:
     assert np.isfinite(total)
     assert "score.total" in trial.user_attrs
     assert "score.coverage" in trial.user_attrs
+    assert "score.preference" in trial.user_attrs
     assert "flags.any_missing" in trial.user_attrs
     assert "flags.catastrophic" in trial.user_attrs
+
+
+def test_geometry_preferences_improve_score_when_acoustics_are_equal() -> None:
+    polar = _make_full_polar()
+    geom = _make_good_geom()
+    config = replace(
+        build_default_objective_config(stage="final"),
+        target_bw_h_deg=80.0,
+        target_bw_v_deg=52.0,
+    )
+    preferences = {
+        "preferred_horn_length_mm": 180.0,
+        "horn_length_tolerance_mm": 20.0,
+        "horn_length_weight": 1.0,
+    }
+
+    closer = evaluate_objective(
+        polar,
+        geom,
+        config,
+        geometry_preferences=preferences,
+        recipe_geometry={"horn_length": 185.0, "mouth_width": 260.0, "mouth_height": 180.0},
+    )
+    farther = evaluate_objective(
+        polar,
+        geom,
+        config,
+        geometry_preferences=preferences,
+        recipe_geometry={"horn_length": 260.0, "mouth_width": 260.0, "mouth_height": 180.0},
+    )
+
+    assert closer.preference_error < farther.preference_error
+    assert closer.total < farther.total
+
+
+def test_acoustic_gain_can_still_beat_preference_penalty() -> None:
+    geom = _make_good_geom()
+    config = replace(
+        build_default_objective_config(stage="final"),
+        target_bw_h_deg=80.0,
+        target_bw_v_deg=52.0,
+    )
+    preferences = {
+        "preferred_horn_length_mm": 180.0,
+        "horn_length_tolerance_mm": 20.0,
+        "horn_length_weight": 1.0,
+    }
+    acoustic_good = _make_full_polar()
+    acoustic_bad_base = _make_full_polar()
+    acoustic_bad = replace(
+        acoustic_bad_base,
+        beamwidth_6_h_deg=np.linspace(120.0, 105.0, acoustic_bad_base.freqs_hz.size),
+        beamwidth_6_v_deg=np.linspace(82.0, 68.0, acoustic_bad_base.freqs_hz.size),
+    )
+
+    preferred_but_bad = evaluate_objective(
+        acoustic_bad,
+        geom,
+        config,
+        geometry_preferences=preferences,
+        recipe_geometry={"horn_length": 180.0, "mouth_width": 260.0, "mouth_height": 180.0},
+    )
+    off_preference_but_good = evaluate_objective(
+        acoustic_good,
+        geom,
+        config,
+        geometry_preferences=preferences,
+        recipe_geometry={"horn_length": 245.0, "mouth_width": 260.0, "mouth_height": 180.0},
+    )
+
+    assert preferred_but_bad.preference_error < off_preference_but_good.preference_error
+    assert off_preference_but_good.coverage_error < preferred_but_bad.coverage_error
+    assert off_preference_but_good.total < preferred_but_bad.total

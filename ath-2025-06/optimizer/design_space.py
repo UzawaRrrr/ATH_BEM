@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from ath_gui.domain.design_recipe import DesignRecipe
 
+from .conflict_policy import resolve_conflict_policy
 from .driver_profile import (
     DEFAULT_COVERAGE_CENTER_DEG,
     DEFAULT_MIN_HORN_LENGTH_MM,
@@ -14,6 +15,7 @@ from .driver_profile import (
     DriverProfile,
     ProductConstraints,
     derive_driver_constraints,
+    is_recipe_inferred_constraints,
 )
 
 
@@ -119,11 +121,11 @@ def _default_osse_seed_values() -> dict[str, float]:
     return dict(OSSE_DEFAULT_VALUES)
 
 
-def _baseline_mouth_geometry(
+def baseline_mouth_geometry_policy(
     driver_profile: DriverProfile,
     product_constraints: ProductConstraints,
 ) -> tuple[float, float, float]:
-    """Build a conservative fixed mouth geometry for baseline recipes only."""
+    """Build the canonical fixed mouth geometry policy for non-optimized mouth fields."""
     derived = derive_driver_constraints(driver_profile, product_constraints)
     throat = derived.fixed_throat_diameter_mm if derived.fixed_throat_diameter_mm is not None else 25.4
     mouth_width_low, mouth_width_high = _coerce_bounds(
@@ -145,6 +147,14 @@ def _baseline_mouth_geometry(
         corner_limit = min(corner_limit, float(derived.max_corner_radius_mm))
     corner_radius = min(max(4.0, min(mouth_width, mouth_height) * 0.12), corner_limit * 0.6 if corner_limit > 0.0 else 0.0)
     return (mouth_width, mouth_height, max(0.0, corner_radius))
+
+
+def _baseline_mouth_geometry(
+    driver_profile: DriverProfile,
+    product_constraints: ProductConstraints,
+) -> tuple[float, float, float]:
+    """Backward-compatible alias for the canonical fixed mouth geometry policy."""
+    return baseline_mouth_geometry_policy(driver_profile, product_constraints)
 
 
 def _coverage_bounds(
@@ -358,7 +368,13 @@ class DesignSpace:
         return actual
 
     def apply_to_recipe(self, base_recipe: DesignRecipe, params: dict[str, Any]) -> DesignRecipe:
-        """Apply active design-space params to a `DesignRecipe`."""
+        """Legacy direct recipe patch helper.
+
+        New trial studies should prefer the canonical recipe builder in
+        `optimizer.study_definition`, which assigns every recipe field from an
+        explicit source instead of relying on residual `replace(base_recipe, ...)`
+        composition. This helper is kept for compatibility and unit tests.
+        """
         field_names = set(DesignRecipe.__dataclass_fields__)
         direct_updates: dict[str, Any] = {}
         ath_overrides = dict(base_recipe.ath_overrides)
@@ -458,6 +474,8 @@ def build_design_space(
     driver_profile: DriverProfile,
     product_constraints: ProductConstraints,
     base_recipe: DesignRecipe | None = None,
+    *,
+    conflict_stage: str | None = None,
 ) -> DesignSpace:
     """Build the active geometry-only design space for the current optimizer.
 
@@ -515,15 +533,26 @@ def build_design_space(
         and derived.max_horn_length_mm is not None
         and float(derived.max_horn_length_mm) < float(derived.min_horn_length_mm)
     ):
+        decision = resolve_conflict_policy(
+            "horn_length_vs_max_depth",
+            stage=conflict_stage,
+            constraints_are_inferred_fallback=is_recipe_inferred_constraints(product_constraints),
+        )
         horn_low, horn_high = _conflicting_horn_bounds(
             min_length=float(derived.min_horn_length_mm),
             max_length=float(derived.max_horn_length_mm),
             base_length=float(effective_base.horn_length),
         )
-        notes.append(
-            "Horn-length heuristic minimum exceeds max depth; optimizer will explore a capped window up to max_depth "
-            "and rely on soft penalties for the short-horn conflict."
-        )
+        if decision.strategy == "cap_and_soft_penalize":
+            notes.append(
+                "Horn-length heuristic minimum exceeds max depth; optimizer will explore a capped window up to max_depth "
+                "and rely on soft penalties for the short-horn conflict."
+            )
+        else:
+            notes.append(
+                "Horn-length heuristic minimum exceeds max depth under fail-fast policy; the capped window is retained "
+                "only so pre-study audit and previews can report the conflict deterministically."
+            )
     variables["horn_length"] = _build_variable(
         name="horn_length",
         kind="float",

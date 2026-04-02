@@ -22,6 +22,7 @@ from .score_components import (
     coverage_error_from_target,
     di_smoothness_error,
     edge_kink_penalty,
+    geometry_preference_penalty,
     geometry_penalty,
     hom_proxy_error,
     listening_window_smoothness_error,
@@ -40,6 +41,17 @@ from .score_types import GeometryStatus, ObjectiveConfig, PolarData, ScoreBundle
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _mapping_or_empty(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if hasattr(value, "items"):
+        try:
+            return {str(key): item for key, item in value.items()}
+        except Exception:
+            return {}
+    return {}
 
 
 def _push_warning(warnings: list[str], message: str) -> None:
@@ -534,6 +546,9 @@ def evaluate_objective(
     polar: PolarData,
     geom: GeometryStatus,
     config: ObjectiveConfig,
+    *,
+    geometry_preferences: dict[str, Any] | None = None,
+    recipe_geometry: dict[str, Any] | None = None,
 ) -> ScoreBundle:
     """Evaluate the scalar objective and all component scores for a parsed result."""
     warnings: list[str] = []
@@ -833,6 +848,19 @@ def evaluate_objective(
     di_score = normalize_component_value(di_raw, config.component_normalizers.get("di_db", 1.0))
     details["di.raw"] = di_raw
 
+    # Geometry preferences regularize canonical recipe dimensions without
+    # turning them into feasibility gates or packaging limits.
+    preference_raw, preference_details = geometry_preference_penalty(
+        actual_geometry=_mapping_or_empty(recipe_geometry),
+        preferences=_mapping_or_empty(geometry_preferences),
+    )
+    preference_score = normalize_component_value(
+        preference_raw,
+        config.component_normalizers.get("preference_penalty", 1.0),
+    )
+    details["preference.raw"] = preference_raw
+    details.update(preference_details)
+
     has_load_proxy = any(key in polar.extras for key in ("throat_reflection", "radiation_efficiency"))
     if not has_load_proxy:
         flags["load_missing"] = True
@@ -858,6 +886,7 @@ def evaluate_objective(
         "hom": hom_score,
         "room": room_score,
         "di": di_score,
+        "preference": preference_score,
         "load": load_score,
         "geom": geom_score,
     }
@@ -920,7 +949,14 @@ def optuna_objective_wrapper(
     raw_result = runner(params)
     bridge = parser_bridge or case_result_to_score_inputs
     polar, geom = bridge(raw_result)
-    score_bundle = evaluate_objective(polar, geom, effective_config)
+    user_attrs = dict(getattr(trial, "user_attrs", {}) or {})
+    score_bundle = evaluate_objective(
+        polar,
+        geom,
+        effective_config,
+        geometry_preferences=_mapping_or_empty(user_attrs.get("geometry_preferences")),
+        recipe_geometry=_mapping_or_empty(user_attrs.get("recipe.preview")),
+    )
 
     _set_trial_attr(trial, "score.total", score_bundle.total)
     _set_trial_attr(trial, "score.coverage", score_bundle.coverage_error)
@@ -928,6 +964,7 @@ def optuna_objective_wrapper(
     _set_trial_attr(trial, "score.hom", score_bundle.hom_error)
     _set_trial_attr(trial, "score.room", score_bundle.room_error)
     _set_trial_attr(trial, "score.di", score_bundle.di_error)
+    _set_trial_attr(trial, "score.preference", score_bundle.preference_error)
     _set_trial_attr(trial, "score.load", score_bundle.load_error)
     _set_trial_attr(trial, "score.geom", score_bundle.geom_error)
     _set_trial_attr(trial, "score.hard", score_bundle.hard_penalty)

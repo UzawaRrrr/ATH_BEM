@@ -9,12 +9,12 @@ import numpy as np
 
 from ath_gui.domain.design_recipe import DesignRecipe
 
+from .conflict_policy import resolve_conflict_policy
 from .design_space import DesignSpace
-from .driver_profile import DriverProfile, ProductConstraints, derive_driver_constraints
+from .driver_profile import DriverProfile, ProductConstraints, derive_driver_constraints, is_recipe_inferred_constraints
 
 
 THROAT_DIAMETER_TOL_MM = 0.2
-SHORT_HORN_IS_HARD_FAIL = True
 EXTREME_ASPECT_RATIO_SOFT_LIMIT = 2.5
 EXTREME_ASPECT_RATIO_HARD_LIMIT = 4.0
 SOFT_ASPECT_RATIO_PENALTY = 7.5
@@ -106,6 +106,7 @@ def _evaluate_osse_geometry(
     coverage_angle_deg: float | None,
     driver_profile: DriverProfile,
     product_constraints: ProductConstraints,
+    conflict_stage: str | None = None,
 ) -> FeasibilityResult:
     """Evaluate a stable OS-SE proxy profile for monotonicity, slope, and terminal behavior.
 
@@ -148,6 +149,12 @@ def _evaluate_osse_geometry(
     metrics["osse_term_n"] = term_n
     metrics["osse_os_k"] = os_k
 
+    osse_range_decision = resolve_conflict_policy(
+        "osse_proxy_out_of_range",
+        stage=conflict_stage,
+        constraints_are_inferred_fallback=is_recipe_inferred_constraints(product_constraints),
+    )
+    out_of_range_severity: Literal["hard", "soft"] = "hard" if osse_range_decision.strategy == "fail_fast" else "soft"
     for name, value, limits in (
         ("Term.s", term_s, OSSE_S_RANGE),
         ("Term.q", term_q, OSSE_Q_RANGE),
@@ -158,7 +165,7 @@ def _evaluate_osse_geometry(
             _append_issue(
                 issues,
                 code="osse_nonfinite_input",
-                severity="hard",
+                severity=out_of_range_severity,
                 message=f"OS-SE parameter {name} is not finite.",
                 value=value,
             )
@@ -166,7 +173,7 @@ def _evaluate_osse_geometry(
             _append_issue(
                 issues,
                 code="osse_parameter_out_of_range",
-                severity="hard",
+                severity=out_of_range_severity,
                 message=f"OS-SE parameter {name} is outside the stable proxy range.",
                 value=value,
                 limit=limits,
@@ -416,6 +423,7 @@ def _evaluate_geometry(
     flare_angle_deg: float | None,
     driver_profile: DriverProfile,
     product_constraints: ProductConstraints,
+    conflict_stage: str | None = None,
 ) -> FeasibilityResult:
     issues: list[FeasibilityIssue] = []
     soft_penalty = 0.0
@@ -523,9 +531,12 @@ def _evaluate_geometry(
             derived.max_horn_length_mm is not None
             and float(derived.max_horn_length_mm) < float(derived.min_horn_length_mm)
         )
-        severity: Literal["hard", "soft"] = "hard" if SHORT_HORN_IS_HARD_FAIL else "soft"
-        if packaging_conflict:
-            severity = "soft"
+        decision = resolve_conflict_policy(
+            "horn_length_vs_max_depth",
+            stage=conflict_stage,
+            constraints_are_inferred_fallback=is_recipe_inferred_constraints(product_constraints),
+        )
+        severity: Literal["hard", "soft"] = "soft" if (packaging_conflict and decision.strategy == "cap_and_soft_penalize") else "hard"
         _append_issue(
             issues,
             code="horn_too_short",
@@ -651,6 +662,8 @@ def validate_recipe_against_driver(
     recipe: DesignRecipe,
     driver_profile: DriverProfile,
     product_constraints: ProductConstraints | None = None,
+    *,
+    conflict_stage: str | None = None,
 ) -> FeasibilityResult:
     """Validate a concrete `DesignRecipe` against driver and product limits."""
     constraints = product_constraints or ProductConstraints()
@@ -671,6 +684,7 @@ def validate_recipe_against_driver(
         flare_angle_deg=flare_angle,
         driver_profile=driver_profile,
         product_constraints=constraints,
+        conflict_stage=conflict_stage,
     )
     osse_result = _evaluate_osse_geometry(
         osse_inputs=osse_inputs,
@@ -679,11 +693,17 @@ def validate_recipe_against_driver(
         coverage_angle_deg=recipe.coverage_angle,
         driver_profile=driver_profile,
         product_constraints=constraints,
+        conflict_stage=conflict_stage,
     )
     return merge_feasibility_results(base_result, osse_result)
 
 
-def validate_params_against_design_space(params: dict[str, Any], design_space: DesignSpace) -> FeasibilityResult:
+def validate_params_against_design_space(
+    params: dict[str, Any],
+    design_space: DesignSpace,
+    *,
+    conflict_stage: str | None = None,
+) -> FeasibilityResult:
     """Validate decoded params against explicit design-space bounds and geometry."""
     issues: list[FeasibilityIssue] = []
     metrics: dict[str, float] = {}
@@ -756,6 +776,7 @@ def validate_params_against_design_space(params: dict[str, Any], design_space: D
         flare_angle_deg=merged_params.get("flare_angle_deg"),
         driver_profile=design_space.driver_profile,
         product_constraints=design_space.product_constraints,
+        conflict_stage=conflict_stage,
     )
     bounds_result = _finalize_result(issues, soft_penalty=0.0, metrics=metrics)
     return merge_feasibility_results(bounds_result, geometry_result)

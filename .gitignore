@@ -23,3 +23,7 @@ optresult/
 # Generated mesh/build artifacts written into shared config folders
 config/ABEC_FreeStanding/bem_mesh.geo
 config/ABEC_FreeStanding/config.msh
+
+# Local machine / manual config snapshots
+Autima_1/config.txt
+config/config.txt

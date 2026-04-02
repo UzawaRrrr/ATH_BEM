@@ -10,7 +10,12 @@ if str(REPO_ROOT) not in sys.path:
 
 from ath_gui.domain.design_recipe import DesignRecipe  # noqa: E402
 from optimizer.design_space import build_design_space  # noqa: E402
-from optimizer.driver_profile import DriverProfile, ProductConstraints  # noqa: E402
+from optimizer.driver_profile import (  # noqa: E402
+    COARSE_INFERRED_RELAXATION_NOTE,
+    INFERRED_PRODUCT_CONSTRAINTS_NOTE,
+    DriverProfile,
+    ProductConstraints,
+)
 from optimizer.feasibility import (  # noqa: E402
     feasibility_penalty,
     validate_params_against_design_space,
@@ -116,7 +121,7 @@ def test_feasibility_hard_fail_and_soft_penalty_cases() -> None:
     assert "osse_curvature_proxy" in osse_ok.derived_metrics
 
 
-def test_packaging_conflict_makes_short_horn_a_soft_issue_instead_of_catastrophic() -> None:
+def test_explicit_packaging_conflict_now_fails_fast() -> None:
     profile = _make_profile()
     constraints = ProductConstraints(
         max_baffle_width_mm=320.0,
@@ -130,6 +135,27 @@ def test_packaging_conflict_makes_short_horn_a_soft_issue_instead_of_catastrophi
     recipe = _make_recipe(horn_length=160.0, mouth_width=160.0, mouth_height=185.0, coverage_angle=60.0)
 
     result = validate_recipe_against_driver(recipe, profile, constraints)
+
+    assert result.hard_fail is True
+    assert any(issue.code == "horn_too_short" and issue.severity == "hard" for issue in result.issues)
+    assert feasibility_penalty(result, catastrophic_score=1000.0) >= 1000.0
+
+
+def test_inferred_coarse_packaging_conflict_can_be_soft_penalized() -> None:
+    profile = _make_profile()
+    constraints = ProductConstraints(
+        max_baffle_width_mm=320.0,
+        max_baffle_height_mm=240.0,
+        max_depth_mm=160.0,
+        min_wall_thickness_mm=4.0,
+        target_bw_h_deg=60.0,
+        target_bw_v_deg=60.0,
+        target_low_freq_hz=1200.0,
+        notes=[INFERRED_PRODUCT_CONSTRAINTS_NOTE, COARSE_INFERRED_RELAXATION_NOTE],
+    )
+    recipe = _make_recipe(horn_length=160.0, mouth_width=160.0, mouth_height=185.0, coverage_angle=60.0)
+
+    result = validate_recipe_against_driver(recipe, profile, constraints, conflict_stage="coarse")
 
     assert result.hard_fail is False
     assert result.ok is True
@@ -160,7 +186,8 @@ def test_extreme_osse_proxy_is_rejected_before_expensive_pipeline() -> None:
 
 def _run_all() -> None:
     test_feasibility_hard_fail_and_soft_penalty_cases()
-    test_packaging_conflict_makes_short_horn_a_soft_issue_instead_of_catastrophic()
+    test_explicit_packaging_conflict_now_fails_fast()
+    test_inferred_coarse_packaging_conflict_can_be_soft_penalized()
     test_extreme_osse_proxy_is_rejected_before_expensive_pipeline()
 
 

@@ -53,6 +53,22 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ScoreBundle": (".score_types", "ScoreBundle"),
     "ScoreWeights": (".score_types", "ScoreWeights"),
     "HeadlessCaseRunner": (".headless_case_runner", "HeadlessCaseRunner"),
+    "StudyEnvironment": (".study_definition", "StudyEnvironment"),
+    "HardConstraints": (".study_definition", "HardConstraints"),
+    "AcousticTargets": (".study_definition", "AcousticTargets"),
+    "GeometryPreferences": (".study_definition", "GeometryPreferences"),
+    "SearchPolicy": (".study_definition", "SearchPolicy"),
+    "StudyDefinition": (".study_definition", "StudyDefinition"),
+    "CanonicalTrialRecipeBuild": (".study_definition", "CanonicalTrialRecipeBuild"),
+    "CanonicalTrialRecipeBuilder": (".study_definition", "CanonicalTrialRecipeBuilder"),
+    "adapt_legacy_study_inputs": (".study_definition", "adapt_legacy_study_inputs"),
+    "build_trial_recipe": (".study_definition", "build_trial_recipe"),
+    "PreStudyAuditItem": (".prestudy_audit", "PreStudyAuditItem"),
+    "PreStudyAuditResult": (".prestudy_audit", "PreStudyAuditResult"),
+    "run_prestudy_audit": (".prestudy_audit", "run_prestudy_audit"),
+    "ConflictDecision": (".conflict_policy", "ConflictDecision"),
+    "resolve_conflict_policy": (".conflict_policy", "resolve_conflict_policy"),
+    "build_preflight_flags": (".conflict_policy", "build_preflight_flags"),
 }
 
 __all__ = sorted(_EXPORTS)

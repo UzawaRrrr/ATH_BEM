@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal, Mapping
 
+from .conflict_policy import resolve_conflict_policy
 
 SOUND_SPEED_MM_PER_S = 343_000.0
 DEFAULT_BAFFLE_EDGE_MARGIN_MM = 8.0
@@ -274,7 +275,12 @@ def relax_inferred_product_constraints(
     inferred low-frequency horn-length gate, because recipe-derived `bem_f1`
     should not behave like a hard geometry requirement during coarse search.
     """
-    if str(stage).strip().lower() != "coarse" or not is_recipe_inferred_constraints(product_constraints):
+    decision = resolve_conflict_policy(
+        "inferred_constraints",
+        stage=stage,
+        constraints_are_inferred_fallback=is_recipe_inferred_constraints(product_constraints),
+    )
+    if decision.strategy != "relax_coarse_only":
         return product_constraints
 
     max_depth = (

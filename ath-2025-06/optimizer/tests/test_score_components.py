@@ -13,9 +13,11 @@ from optimizer.score_components import (
     angular_roughness_penalty,
     constant_directivity_error,
     di_smoothness_error,
+    geometry_preference_penalty,
     monotonicity_penalty,
     normalize_offaxis,
     spectral_roughness_penalty,
+    smooth_preference_penalty,
 )
 
 
@@ -142,3 +144,37 @@ def test_di_smoothness_error_tracks_shape_not_absolute_di_offset() -> None:
 
     assert np.isclose(base_score, shifted_score)
     assert wiggly_score > shifted_score
+
+
+def test_smooth_preference_penalty_is_soft_and_increases_gradually() -> None:
+    near = smooth_preference_penalty(5.0, 20.0)
+    at_tolerance = smooth_preference_penalty(20.0, 20.0)
+    far = smooth_preference_penalty(60.0, 20.0)
+
+    assert near < at_tolerance < far
+    assert np.isclose(smooth_preference_penalty(0.0, 20.0), 0.0)
+
+
+def test_geometry_preference_penalty_prefers_closer_geometry_without_hard_threshold() -> None:
+    preferences = {
+        "preferred_horn_length_mm": 200.0,
+        "horn_length_tolerance_mm": 20.0,
+        "horn_length_weight": 1.0,
+        "preferred_mouth_width_mm": 260.0,
+        "mouth_width_tolerance_mm": 15.0,
+        "mouth_width_weight": 0.5,
+    }
+    closer_score, closer_details = geometry_preference_penalty(
+        actual_geometry={"horn_length": 205.0, "mouth_width": 255.0},
+        preferences=preferences,
+    )
+    farther_score, farther_details = geometry_preference_penalty(
+        actual_geometry={"horn_length": 250.0, "mouth_width": 300.0},
+        preferences=preferences,
+    )
+
+    assert closer_score < farther_score
+    assert np.isfinite(closer_score)
+    assert np.isfinite(farther_score)
+    assert "preference.horn_length.raw" in closer_details
+    assert farther_details["preference.horn_length.normalized_delta"] > closer_details["preference.horn_length.normalized_delta"]

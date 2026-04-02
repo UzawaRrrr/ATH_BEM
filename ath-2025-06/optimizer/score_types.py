@@ -204,6 +204,7 @@ class ScoreWeights:
     w_hom: float
     w_room: float
     w_di: float
+    w_pref: float
     w_load: float
     w_geom: float
     w_hard: float
@@ -272,6 +273,7 @@ class ScoreBundle:
     hom_error: float
     room_error: float
     di_error: float
+    preference_error: float
     load_error: float
     geom_error: float
     details: dict[str, float] = field(default_factory=dict)
@@ -288,6 +290,7 @@ class ScoreBundle:
             "hom_error": float(self.hom_error),
             "room_error": float(self.room_error),
             "di_error": float(self.di_error),
+            "preference_error": float(self.preference_error),
             "load_error": float(self.load_error),
             "geom_error": float(self.geom_error),
             "details": dict(self.details),
