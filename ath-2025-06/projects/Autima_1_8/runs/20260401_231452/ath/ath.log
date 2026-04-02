@@ -1,7 +1,0 @@
-Info    : Running 'E:\pythonGATH\.venv\Scripts\gmsh bem_mesh.geo -' [Gmsh 4.15.1, 1 node, max. 1 thread]
-Info    : Started on Wed Apr 01 23:14:52 2026
-Info    : Reading 'bem_mesh.geo'...
-Warning : Impossible to recover edge 1262 1262 (error tag -1)
-Warning : Impossible to recover edge 1449 1449 (error tag -1)
-Warning : Impossible to recover edge 1451 1451 (error tag -1)
-Warning : Impossible to recover edge 1448 1448 (error tag -1)

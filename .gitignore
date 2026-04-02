@@ -14,3 +14,12 @@ ath-2025-06/.pytest_tmp/
 ath-2025-06/tests/
 ath-2025-06/_symmetry_smoke/_tmp_full_rebuild/
 ath-2025-06/_symmetry_smoke/full_rebuild/
+
+# ATH/BEM generated workspaces and optimization outputs
+ath-2025-06/projects/*/latest_workspace.txt
+ath-2025-06/projects/*/runs/
+optresult/
+
+# Generated mesh/build artifacts written into shared config folders
+config/ABEC_FreeStanding/bem_mesh.geo
+config/ABEC_FreeStanding/config.msh
