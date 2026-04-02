@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+import numpy as np
+
 from ath_gui.domain.design_recipe import DesignRecipe
 
 from .design_space import DesignSpace
@@ -26,6 +28,26 @@ INSTALL_CONFLICT_HARD_MARGIN_MM = 0.0
 MOUTH_RATIO_HARD_FLOOR = 1.5
 HORN_SHORT_SOFT_PENALTY = 12.0
 PACKAGING_CONFLICT_SHORT_HORN_SOFT_PENALTY = 18.0
+OSSE_SAMPLE_COUNT = 96
+OSSE_Q_RANGE = (0.96, 0.999)
+OSSE_S_RANGE = (0.50, 0.85)
+OSSE_N_RANGE = (3.0, 6.0)
+OSSE_K_RANGE = (0.80, 1.25)
+OSSE_MIN_TERMINAL_RATIO_HARD = 1.20
+OSSE_MAX_TERMINAL_RATIO_SOFT = 4.25
+OSSE_MAX_TERMINAL_RATIO_HARD = 5.25
+OSSE_MAX_SLOPE_SOFT_DEG = 30.0
+OSSE_MAX_SLOPE_HARD_DEG = 45.0
+OSSE_MIN_SLOPE_SOFT_DEG = 1.0
+OSSE_CURVATURE_SOFT_LIMIT = 0.16
+OSSE_CURVATURE_HARD_LIMIT = 0.28
+OSSE_EXIT_DELTA_SOFT_DEG = 12.0
+OSSE_EXIT_DELTA_HARD_DEG = 22.0
+OSSE_STEEP_SLOPE_SOFT_PENALTY = 8.0
+OSSE_CURVATURE_SOFT_PENALTY = 7.0
+OSSE_EXIT_DELTA_SOFT_PENALTY = 4.5
+OSSE_TERMINAL_RATIO_SOFT_PENALTY = 5.5
+OSSE_FLAT_SLOPE_SOFT_PENALTY = 3.0
 
 
 def _clamp_nonnegative(value: float) -> float:
@@ -38,6 +60,13 @@ def _coalesce_numeric(value: Any) -> float | None:
     return float(value)
 
 
+def _is_finite_number(value: Any) -> bool:
+    try:
+        return bool(np.isfinite(float(value)))
+    except Exception:
+        return False
+
+
 def _append_issue(
     issues: list["FeasibilityIssue"],
     *,
@@ -48,6 +77,279 @@ def _append_issue(
     limit: Any = None,
 ) -> None:
     issues.append(FeasibilityIssue(code=code, severity=severity, message=message, value=value, limit=limit))
+
+
+def _extract_osse_inputs(ath_overrides: dict[str, Any] | None) -> dict[str, float] | None:
+    """Extract OS-SE core terms from `ath_overrides`, filling missing values with stable defaults."""
+    payload = dict(ath_overrides or {})
+    keys_present = {"Term.s", "Term.q", "Term.n", "OS.k"}.intersection(payload)
+    if not keys_present:
+        return None
+    defaults = {
+        "Term.s": 0.7,
+        "Term.q": 0.995,
+        "Term.n": 4.0,
+        "OS.k": 1.0,
+    }
+    result: dict[str, float] = {}
+    for key, default in defaults.items():
+        raw_value = payload.get(key, default)
+        result[key] = float(raw_value)
+    return result
+
+
+def _evaluate_osse_geometry(
+    *,
+    osse_inputs: dict[str, float] | None,
+    throat_diameter_mm: float | None,
+    horn_length_mm: float | None,
+    coverage_angle_deg: float | None,
+    driver_profile: DriverProfile,
+    product_constraints: ProductConstraints,
+) -> FeasibilityResult:
+    """Evaluate a stable OS-SE proxy profile for monotonicity, slope, and terminal behavior.
+
+    The proxy here is intentionally approximate. It does not try to reconstruct
+    ATH's full internal OS-SE implementation; instead it builds a smooth,
+    normalized expansion curve from `Term.s`, `Term.q`, `Term.n`, and `OS.k`
+    and derives robust safety proxies such as monotonic expansion, equivalent
+    terminal ratio, throat slope, and curvature. The goal is early rejection of
+    numerically unstable or obviously implausible OS-SE combinations before the
+    expensive mesh/BEM pipeline starts.
+    """
+    if osse_inputs is None:
+        return FeasibilityResult(ok=True, hard_fail=False, soft_penalty=0.0, issues=[], derived_metrics={})
+
+    issues: list[FeasibilityIssue] = []
+    soft_penalty = 0.0
+    metrics: dict[str, float] = {}
+
+    throat = _coalesce_numeric(throat_diameter_mm)
+    horn_length = _coalesce_numeric(horn_length_mm)
+    coverage = _coalesce_numeric(coverage_angle_deg)
+    if throat is None or horn_length is None or horn_length <= 0.0:
+        _append_issue(
+            issues,
+            code="osse_missing_base_geometry",
+            severity="hard",
+            message="OS-SE proxy evaluation requires finite throat diameter and horn length.",
+            value={"throat_diameter_mm": throat, "horn_length_mm": horn_length},
+        )
+        metrics["osse_valid"] = 0.0
+        metrics["osse_monotonic_ok"] = 0.0
+        return _finalize_result(issues, soft_penalty=soft_penalty, metrics=metrics)
+
+    term_s = float(osse_inputs["Term.s"])
+    term_q = float(osse_inputs["Term.q"])
+    term_n = float(osse_inputs["Term.n"])
+    os_k = float(osse_inputs["OS.k"])
+    metrics["osse_term_s"] = term_s
+    metrics["osse_term_q"] = term_q
+    metrics["osse_term_n"] = term_n
+    metrics["osse_os_k"] = os_k
+
+    for name, value, limits in (
+        ("Term.s", term_s, OSSE_S_RANGE),
+        ("Term.q", term_q, OSSE_Q_RANGE),
+        ("Term.n", term_n, OSSE_N_RANGE),
+        ("OS.k", os_k, OSSE_K_RANGE),
+    ):
+        if not _is_finite_number(value):
+            _append_issue(
+                issues,
+                code="osse_nonfinite_input",
+                severity="hard",
+                message=f"OS-SE parameter {name} is not finite.",
+                value=value,
+            )
+        elif float(value) < float(limits[0]) or float(value) > float(limits[1]):
+            _append_issue(
+                issues,
+                code="osse_parameter_out_of_range",
+                severity="hard",
+                message=f"OS-SE parameter {name} is outside the stable proxy range.",
+                value=value,
+                limit=limits,
+            )
+    if issues:
+        metrics["osse_valid"] = 0.0
+        metrics["osse_monotonic_ok"] = 0.0
+        return _finalize_result(issues, soft_penalty=soft_penalty, metrics=metrics)
+
+    throat_radius = throat * 0.5
+    coverage_ref = max(30.0, coverage if coverage is not None else 90.0)
+    q_softness = np.clip((term_q - OSSE_Q_RANGE[0]) / max(OSSE_Q_RANGE[1] - OSSE_Q_RANGE[0], 1.0e-9), 0.0, 1.0)
+    coverage_factor = np.clip(110.0 / coverage_ref, 0.75, 2.40)
+    shape_gain = (
+        1.0
+        + 0.55 * ((term_s - OSSE_S_RANGE[0]) / (OSSE_S_RANGE[1] - OSSE_S_RANGE[0]))
+        + 0.20 * ((term_n - OSSE_N_RANGE[0]) / (OSSE_N_RANGE[1] - OSSE_N_RANGE[0]))
+        + 0.30 * q_softness
+    )
+    terminal_ratio = max(1.05, os_k * coverage_factor * shape_gain)
+    terminal_diameter = throat * terminal_ratio
+    delta_radius = max(0.0, terminal_diameter * 0.5 - throat_radius)
+
+    u = np.linspace(0.0, 1.0, OSSE_SAMPLE_COUNT, dtype=float)
+    blend = term_s * u + (1.0 - term_s) * np.power(u, max(term_n, 1.0e-9))
+    q_exponent = 1.0 + 2.5 * (1.0 - q_softness)
+    curve = q_softness * blend + (1.0 - q_softness) * np.power(np.clip(blend, 0.0, 1.0), q_exponent)
+    radius_profile = throat_radius + (delta_radius * curve)
+    axial_mm = u * horn_length
+
+    if not bool(np.all(np.isfinite(radius_profile))) or not bool(np.all(np.isfinite(axial_mm))):
+        _append_issue(
+            issues,
+            code="osse_invalid_profile",
+            severity="hard",
+            message="OS-SE proxy sampling generated non-finite geometry.",
+        )
+        metrics["osse_valid"] = 0.0
+        metrics["osse_monotonic_ok"] = 0.0
+        return _finalize_result(issues, soft_penalty=soft_penalty, metrics=metrics)
+
+    radial_delta = np.diff(radius_profile)
+    monotonic_ok = bool(np.all(radial_delta >= -1.0e-6))
+    min_delta = float(np.min(radial_delta)) if radial_delta.size else 0.0
+    if not monotonic_ok:
+        _append_issue(
+            issues,
+            code="osse_non_monotonic",
+            severity="hard",
+            message="OS-SE proxy profile is not monotonically expanding.",
+            value=min_delta,
+            limit=0.0,
+        )
+
+    dr_dx = np.gradient(radius_profile, axial_mm)
+    d2r_dx2 = np.gradient(dr_dx, axial_mm)
+    if not bool(np.all(np.isfinite(dr_dx))) or not bool(np.all(np.isfinite(d2r_dx2))):
+        _append_issue(
+            issues,
+            code="osse_invalid_derivatives",
+            severity="hard",
+            message="OS-SE proxy derivatives are not finite.",
+        )
+
+    throat_slice = max(6, OSSE_SAMPLE_COUNT // 10)
+    throat_slope = float(np.polyfit(axial_mm[:throat_slice], radius_profile[:throat_slice], 1)[0])
+    throat_slope_deg = float(np.degrees(np.arctan(max(0.0, throat_slope))))
+    max_slope_deg = float(np.degrees(np.arctan(max(0.0, float(np.max(dr_dx))))))
+    curvature_proxy = float(np.max(np.abs(d2r_dx2)) * horn_length / max(delta_radius, 1.0e-6)) if delta_radius > 0.0 else 0.0
+
+    metrics["osse_valid"] = 1.0 if not any(issue.severity == "hard" for issue in issues) else 0.0
+    metrics["osse_monotonic_ok"] = 1.0 if monotonic_ok else 0.0
+    metrics["osse_min_delta_mm"] = min_delta
+    metrics["osse_throat_slope_proxy_deg"] = throat_slope_deg
+    metrics["osse_max_slope_proxy_deg"] = max_slope_deg
+    metrics["osse_terminal_proxy_mm"] = terminal_diameter
+    metrics["osse_terminal_ratio"] = terminal_ratio
+    metrics["osse_curvature_proxy"] = curvature_proxy
+
+    if terminal_ratio < OSSE_MIN_TERMINAL_RATIO_HARD:
+        _append_issue(
+            issues,
+            code="osse_terminal_ratio_too_low",
+            severity="hard",
+            message="OS-SE terminal proxy is too close to the throat and risks a degenerate expansion.",
+            value=terminal_ratio,
+            limit=OSSE_MIN_TERMINAL_RATIO_HARD,
+        )
+    elif terminal_ratio > OSSE_MAX_TERMINAL_RATIO_HARD:
+        _append_issue(
+            issues,
+            code="osse_terminal_ratio_too_high",
+            severity="hard",
+            message="OS-SE terminal proxy is implausibly aggressive for a stable first-stage search.",
+            value=terminal_ratio,
+            limit=OSSE_MAX_TERMINAL_RATIO_HARD,
+        )
+    elif terminal_ratio > OSSE_MAX_TERMINAL_RATIO_SOFT:
+        _append_issue(
+            issues,
+            code="osse_terminal_ratio_high_soft",
+            severity="soft",
+            message="OS-SE terminal proxy is very aggressive and may be difficult to realize.",
+            value=terminal_ratio,
+            limit=OSSE_MAX_TERMINAL_RATIO_SOFT,
+        )
+        soft_penalty += OSSE_TERMINAL_RATIO_SOFT_PENALTY * min(terminal_ratio / OSSE_MAX_TERMINAL_RATIO_SOFT, 1.5)
+
+    if max_slope_deg > OSSE_MAX_SLOPE_HARD_DEG:
+        _append_issue(
+            issues,
+            code="osse_slope_too_steep",
+            severity="hard",
+            message="OS-SE proxy flare becomes too steep for a stable geometry.",
+            value=max_slope_deg,
+            limit=OSSE_MAX_SLOPE_HARD_DEG,
+        )
+    elif max_slope_deg > OSSE_MAX_SLOPE_SOFT_DEG:
+        _append_issue(
+            issues,
+            code="osse_slope_steep_soft",
+            severity="soft",
+            message="OS-SE proxy flare is steeper than the preferred stable region.",
+            value=max_slope_deg,
+            limit=OSSE_MAX_SLOPE_SOFT_DEG,
+        )
+        soft_penalty += OSSE_STEEP_SLOPE_SOFT_PENALTY * min(max_slope_deg / OSSE_MAX_SLOPE_SOFT_DEG, 1.5)
+    elif max_slope_deg < OSSE_MIN_SLOPE_SOFT_DEG and terminal_ratio < 1.45:
+        _append_issue(
+            issues,
+            code="osse_profile_too_flat_soft",
+            severity="soft",
+            message="OS-SE proxy flare is very flat and may not deliver meaningful expansion.",
+            value=max_slope_deg,
+            limit=OSSE_MIN_SLOPE_SOFT_DEG,
+        )
+        soft_penalty += OSSE_FLAT_SLOPE_SOFT_PENALTY
+
+    if curvature_proxy > OSSE_CURVATURE_HARD_LIMIT:
+        _append_issue(
+            issues,
+            code="osse_curvature_too_high",
+            severity="hard",
+            message="OS-SE proxy curvature is too sharp for a stable numerical profile.",
+            value=curvature_proxy,
+            limit=OSSE_CURVATURE_HARD_LIMIT,
+        )
+    elif curvature_proxy > OSSE_CURVATURE_SOFT_LIMIT:
+        _append_issue(
+            issues,
+            code="osse_curvature_high_soft",
+            severity="soft",
+            message="OS-SE proxy curvature is higher than the preferred stable region.",
+            value=curvature_proxy,
+            limit=OSSE_CURVATURE_SOFT_LIMIT,
+        )
+        soft_penalty += OSSE_CURVATURE_SOFT_PENALTY * min(curvature_proxy / OSSE_CURVATURE_SOFT_LIMIT, 1.5)
+
+    if driver_profile.exit_angle_deg is not None:
+        exit_delta = abs(float(driver_profile.exit_angle_deg) - throat_slope_deg)
+        metrics["osse_exit_angle_delta_deg"] = exit_delta
+        if exit_delta > OSSE_EXIT_DELTA_HARD_DEG:
+            _append_issue(
+                issues,
+                code="osse_exit_continuity_hard",
+                severity="hard",
+                message="OS-SE throat slope proxy is too far from the driver exit angle.",
+                value=throat_slope_deg,
+                limit=driver_profile.exit_angle_deg,
+            )
+        elif exit_delta > OSSE_EXIT_DELTA_SOFT_DEG:
+            _append_issue(
+                issues,
+                code="osse_exit_continuity_soft",
+                severity="soft",
+                message="OS-SE throat slope proxy departs from the preferred driver exit continuity.",
+                value=throat_slope_deg,
+                limit=driver_profile.exit_angle_deg,
+            )
+            soft_penalty += OSSE_EXIT_DELTA_SOFT_PENALTY * min(exit_delta / OSSE_EXIT_DELTA_SOFT_DEG, 1.5)
+
+    metrics["osse_valid"] = 1.0 if not any(issue.severity == "hard" for issue in issues) else 0.0
+    return _finalize_result(issues, soft_penalty=soft_penalty, metrics=metrics)
 
 
 @dataclass(slots=True)
@@ -353,11 +655,13 @@ def validate_recipe_against_driver(
     """Validate a concrete `DesignRecipe` against driver and product limits."""
     constraints = product_constraints or ProductConstraints()
     flare_angle = None
+    osse_inputs = None
     if isinstance(recipe.ath_overrides, dict):
         raw_flare_angle = recipe.ath_overrides.get("Flare.Angle")
         if raw_flare_angle is not None:
             flare_angle = float(raw_flare_angle)
-    return _evaluate_geometry(
+        osse_inputs = _extract_osse_inputs(recipe.ath_overrides)
+    base_result = _evaluate_geometry(
         throat_diameter_mm=recipe.throat_diameter,
         mouth_width_mm=recipe.mouth_width,
         mouth_height_mm=recipe.mouth_height,
@@ -368,6 +672,15 @@ def validate_recipe_against_driver(
         driver_profile=driver_profile,
         product_constraints=constraints,
     )
+    osse_result = _evaluate_osse_geometry(
+        osse_inputs=osse_inputs,
+        throat_diameter_mm=recipe.throat_diameter,
+        horn_length_mm=recipe.horn_length,
+        coverage_angle_deg=recipe.coverage_angle,
+        driver_profile=driver_profile,
+        product_constraints=constraints,
+    )
+    return merge_feasibility_results(base_result, osse_result)
 
 
 def validate_params_against_design_space(params: dict[str, Any], design_space: DesignSpace) -> FeasibilityResult:

@@ -37,11 +37,13 @@ class DesignRecipe:
 
     source_mode: str = "normal"
     source_shape: str = "cap"
+    # The current optimizer keeps source gain fixed as part of the study environment.
     source_velocity: float = 1.0
 
     auto_enclosure_enabled: bool = True
     output_abec_project_enabled: bool = True
 
+    # BEM setup stays outside the search space in the current optimizer stage.
     bem_f1: float = 200.0
     bem_f2: float = 20000.0
     bem_num_freq: int = 48
@@ -126,6 +128,8 @@ class DesignRecipe:
         state["Throat.Diameter"] = f"{self.throat_diameter:g}"
         state["Length"] = f"{self.horn_length:g}"
         state["Coverage.Angle"] = f"{self.coverage_angle:g}"
+        # Flare family selection remains a future optimizer mode boundary and is
+        # intentionally excluded from the current search space.
 
         shape_key = self.mouth_shape.strip().lower()
         target_shape = {"keep": "0", "rect": "1", "round": "2"}.get(shape_key, "1")
@@ -154,6 +158,8 @@ class DesignRecipe:
         self.assert_valid()
         state = default_recipe_bem_state() if base_state is None else dict(base_state)
 
+        # The optimizer treats BEM configuration as fixed study environment, but
+        # the recipe still compiles those fixed values into the runtime state.
         state["BEM.F1"] = f"{self.bem_f1:g}"
         state["BEM.F2"] = f"{self.bem_f2:g}"
         state["BEM.NumFreq"] = str(int(self.bem_num_freq))

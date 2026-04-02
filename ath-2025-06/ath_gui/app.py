@@ -1579,7 +1579,7 @@ class AthConfigStudio(tk.Tk):
             driver_source = "inferred from current recipe"
 
         design_space = build_design_space(driver_profile, constraints, base_recipe=recipe)
-        seed_params = build_initial_seed_params(driver_profile, constraints)
+        seed_params = build_initial_seed_params(driver_profile, constraints, base_recipe=recipe)
         return {
             "recipe": recipe,
             "optimizer_state": optimizer_state,

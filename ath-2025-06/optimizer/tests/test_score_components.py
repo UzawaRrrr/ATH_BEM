@@ -12,6 +12,7 @@ if str(REPO_ROOT) not in sys.path:
 from optimizer.score_components import (
     angular_roughness_penalty,
     constant_directivity_error,
+    di_smoothness_error,
     monotonicity_penalty,
     normalize_offaxis,
     spectral_roughness_penalty,
@@ -125,3 +126,19 @@ def test_spectral_roughness_penalty_increases_with_narrowband_ripple() -> None:
     rough_score = spectral_roughness_penalty(rough, freqs_hz, freq_mask=freq_mask)
 
     assert rough_score > smooth_score
+
+
+def test_di_smoothness_error_tracks_shape_not_absolute_di_offset() -> None:
+    freqs_hz = np.geomspace(1000.0, 16000.0, 24)
+    freq_mask = np.ones(freqs_hz.size, dtype=bool)
+    logf = np.log10(freqs_hz / freqs_hz[0])
+    base_di = 7.0 + 3.5 * logf
+    shifted_di = base_di + 5.0
+    wiggly_di = base_di + 0.7 * np.sin(np.linspace(0.0, 5.0 * np.pi, freqs_hz.size))
+
+    base_score = di_smoothness_error(base_di, freqs_hz, freq_mask)
+    shifted_score = di_smoothness_error(shifted_di, freqs_hz, freq_mask)
+    wiggly_score = di_smoothness_error(wiggly_di, freqs_hz, freq_mask)
+
+    assert np.isclose(base_score, shifted_score)
+    assert wiggly_score > shifted_score

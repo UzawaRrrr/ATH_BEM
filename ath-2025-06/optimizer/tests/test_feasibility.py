@@ -54,6 +54,12 @@ def _make_recipe(**overrides: float) -> DesignRecipe:
         mouth_height=185.0,
         mouth_corner_radius=16.0,
         source_velocity=1.0,
+        ath_overrides={
+            "Term.s": 0.7,
+            "Term.q": 0.995,
+            "Term.n": 4.0,
+            "OS.k": 1.0,
+        },
     )
     return DesignRecipe.from_dict({**recipe.to_dict(), **overrides})
 
@@ -86,6 +92,10 @@ def test_feasibility_hard_fail_and_soft_penalty_cases() -> None:
             "throat_diameter": 25.0,
             "horn_length": 210.0,
             "coverage_angle": 88.0,
+            "ath_overrides.Term.s": 0.7,
+            "ath_overrides.Term.q": 0.995,
+            "ath_overrides.Term.n": 4.0,
+            "ath_overrides.OS.k": 1.0,
             "mouth_width": 130.0,
             "mouth_height": 185.0,
             "mouth_corner_radius": 16.0,
@@ -96,6 +106,14 @@ def test_feasibility_hard_fail_and_soft_penalty_cases() -> None:
     assert params_ok.ok is True
     assert params_ok.hard_fail is False
     assert feasibility_penalty(coverage_soft, catastrophic_score=1000.0) > 0.0
+
+    osse_ok = validate_recipe_against_driver(_make_recipe(), profile, constraints)
+    assert osse_ok.hard_fail is False
+    assert osse_ok.derived_metrics["osse_valid"] == 1.0
+    assert osse_ok.derived_metrics["osse_monotonic_ok"] == 1.0
+    assert "osse_throat_slope_proxy_deg" in osse_ok.derived_metrics
+    assert "osse_terminal_proxy_mm" in osse_ok.derived_metrics
+    assert "osse_curvature_proxy" in osse_ok.derived_metrics
 
 
 def test_packaging_conflict_makes_short_horn_a_soft_issue_instead_of_catastrophic() -> None:
@@ -119,9 +137,31 @@ def test_packaging_conflict_makes_short_horn_a_soft_issue_instead_of_catastrophi
     assert feasibility_penalty(result, catastrophic_score=1000.0) < 1000.0
 
 
+def test_extreme_osse_proxy_is_rejected_before_expensive_pipeline() -> None:
+    profile = _make_profile()
+    constraints = _make_constraints()
+    recipe = _make_recipe(
+        coverage_angle=60.0,
+        ath_overrides={
+            "Term.s": 0.85,
+            "Term.q": 0.96,
+            "Term.n": 6.0,
+            "OS.k": 1.25,
+        },
+    )
+
+    result = validate_recipe_against_driver(recipe, profile, constraints)
+
+    assert result.hard_fail is True
+    assert any(issue.code == "osse_slope_too_steep" for issue in result.issues)
+    assert result.derived_metrics["osse_valid"] == 0.0
+    assert result.derived_metrics["osse_terminal_proxy_mm"] > recipe.throat_diameter
+
+
 def _run_all() -> None:
     test_feasibility_hard_fail_and_soft_penalty_cases()
     test_packaging_conflict_makes_short_horn_a_soft_issue_instead_of_catastrophic()
+    test_extreme_osse_proxy_is_rejected_before_expensive_pipeline()
 
 
 if __name__ == "__main__":

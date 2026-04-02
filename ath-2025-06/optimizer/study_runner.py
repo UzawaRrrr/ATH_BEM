@@ -297,6 +297,14 @@ def _recipe_to_design_space_params(recipe: DesignRecipe, design_space: DesignSpa
             continue
         if hasattr(recipe, name):
             params[name] = getattr(recipe, name)
+        elif str(name).startswith("ath_overrides."):
+            override_key = str(name).removeprefix("ath_overrides.")
+            if override_key in recipe.ath_overrides:
+                params[name] = recipe.ath_overrides[override_key]
+        elif str(name).startswith("bem_overrides."):
+            override_key = str(name).removeprefix("bem_overrides.")
+            if override_key in recipe.bem_overrides:
+                params[name] = recipe.bem_overrides[override_key]
         elif variable.kind == "fixed":
             params[name] = variable.fixed_value
     return params
@@ -345,7 +353,7 @@ def run_optuna_study(
         load_if_exists=bool(storage),
     )
 
-    seed_params = build_initial_seed_params(driver_profile, product_constraints)
+    seed_params = build_initial_seed_params(driver_profile, product_constraints, base_recipe=base_recipe)
     _enqueue_if_feasible(study, design_space, seed_params)
     if config.enqueue_base:
         _enqueue_if_feasible(study, design_space, _recipe_to_design_space_params(base_recipe, design_space))

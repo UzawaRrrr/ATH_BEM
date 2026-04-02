@@ -11,7 +11,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from optimizer.objective import evaluate_objective, objective_from_result_bundle, optuna_objective_wrapper
-from optimizer.score_defaults import DEFAULT_STAGE_FACTORS, build_default_objective_config
+from optimizer.score_components import aggregate_score
+from optimizer.score_defaults import DEFAULT_SCORE_WEIGHTS, DEFAULT_STAGE_FACTORS, build_default_objective_config
 from optimizer.score_types import GeometryStatus, PolarData
 
 
@@ -103,6 +104,39 @@ def test_stage_weighting_matches_stage_schedule() -> None:
             + config.weights.w_geom * factors["geom"] * score.geom_error
         )
         assert np.isclose(score.total, expected)
+
+
+def test_default_weights_shift_focus_to_coverage_and_di_over_cd() -> None:
+    assert DEFAULT_SCORE_WEIGHTS.w_cov > DEFAULT_SCORE_WEIGHTS.w_di
+    assert DEFAULT_SCORE_WEIGHTS.w_di > DEFAULT_SCORE_WEIGHTS.w_cd
+    assert DEFAULT_SCORE_WEIGHTS.w_hom > DEFAULT_SCORE_WEIGHTS.w_cd
+
+
+def test_stage_contributions_prioritize_coverage_then_di_then_cd() -> None:
+    for stage in ("coarse", "refine", "final"):
+        bundle = aggregate_score(
+            components={
+                "hard": 0.0,
+                "coverage": 1.0,
+                "cd": 1.0,
+                "hom": 1.0,
+                "room": 1.0,
+                "di": 1.0,
+                "load": 1.0,
+                "geom": 1.0,
+            },
+            config=build_default_objective_config(stage=stage),
+        )
+        contributions = bundle.details
+        assert contributions["contribution.coverage"] > contributions["contribution.cd"]
+        if stage == "coarse":
+            assert contributions["contribution.cd"] == 0.0
+            assert contributions["contribution.di"] == 0.0
+        elif stage == "refine":
+            assert contributions["contribution.di"] > contributions["contribution.cd"]
+        else:
+            assert contributions["contribution.di"] > contributions["contribution.cd"]
+            assert contributions["contribution.coverage"] > contributions["contribution.di"]
 
 
 class _FakeTrial:

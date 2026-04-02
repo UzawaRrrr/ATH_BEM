@@ -82,6 +82,9 @@ GEOMETRY_FIELDS = (
 )
 
 GUIDING_CURVE_FIELDS = (
+    # Optimizer v1.1.08 OSSE-first stage does not search Guiding Curve families.
+    # These fields stay available for manual editing, but GCurve / SE / SF paths
+    # are intentionally excluded from the current headless optimization space.
     FieldSpec(
         "GCurve.Type",
         "導引曲線類型",

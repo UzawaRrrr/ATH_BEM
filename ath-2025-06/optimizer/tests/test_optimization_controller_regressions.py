@@ -388,12 +388,68 @@ def test_catastrophic_trial_diagnostics_are_written_to_controller_log() -> None:
     assert "mouth_width" in joined
 
 
+def test_run_study_worker_captures_exception_for_deferred_tk_callback() -> None:
+    base_recipe = _make_recipe()
+    app = _FakeApp(recipe=base_recipe)
+    controller = OptimizationController(app)
+    captured_errors: list[str] = []
+    controller._apply_final_error = lambda exc: captured_errors.append(str(exc))  # type: ignore[method-assign]
+
+    fake_headless_module = ModuleType("optimizer.headless_case_runner")
+
+    class _FakeHeadlessRunner:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = dict(kwargs)
+
+    def _raise_in_study(**_kwargs):
+        raise RuntimeError("study worker boom")
+
+    fake_headless_module.HeadlessCaseRunner = _FakeHeadlessRunner
+
+    fake_study_runner_module = ModuleType("optimizer.study_runner")
+    fake_study_runner_module.run_optuna_study = _raise_in_study
+    fake_study_runner_module.suggest_default_params = lambda *_args, **_kwargs: {}
+    fake_study_runner_module.write_study_artifacts = lambda *_args, **_kwargs: None
+
+    with patch.dict(
+        sys.modules,
+        {
+            "optimizer.headless_case_runner": fake_headless_module,
+            "optimizer.study_runner": fake_study_runner_module,
+        },
+        clear=False,
+    ), patch(
+        "ath_gui.application.controllers.optimization_controller.build_bem_runtime_settings",
+        lambda _bem_state, _ath_state: {"backend": "wsl", "launch_options": {}},
+    ), patch(
+        "ath_gui.application.controllers.optimization_controller.sanitize_bem_state",
+        lambda state, _ath_state: dict(state),
+    ), patch(
+        "ath_gui.application.controllers.optimization_controller.sanitize_ath_state",
+        lambda state: dict(state),
+    ), patch(
+        "ath_gui.application.controllers.optimization_controller.derive_auto_enclosure",
+        lambda state: dict(state),
+    ):
+        controller._run_study_worker(
+            base_recipe,
+            {},
+            {},
+            {},
+            SimpleNamespace(stage="coarse", trials=1, study_dir=Path(tempfile.gettempdir())),
+            {"planes": ("XZ",)},
+        )
+
+    assert captured_errors == ["study worker boom"]
+
+
 def _run_all() -> None:
     test_final_best_summary_keeps_decoded_and_raw_params_separate()
     test_apply_best_trial_prefers_decoded_actual_params()
     test_refine_stage_uses_previous_non_catastrophic_best_as_effective_base_recipe()
     test_catastrophic_previous_best_falls_back_to_current_gui_state()
     test_catastrophic_trial_diagnostics_are_written_to_controller_log()
+    test_run_study_worker_captures_exception_for_deferred_tk_callback()
 
 
 if __name__ == "__main__":

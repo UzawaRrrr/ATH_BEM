@@ -17,7 +17,6 @@ from .driver_profile import (
 )
 
 
-DEFAULT_SOURCE_VELOCITY_RANGE = (0.1, 3.0)
 DEFAULT_FLOAT_UNIT_RANGE = (0.0, 1.0)
 DEFAULT_WIDTH_FLOOR_MM = 80.0
 DEFAULT_HEIGHT_FLOOR_MM = 60.0
@@ -28,6 +27,19 @@ DEFAULT_MAX_MOUTH_DIM_MM = 600.0
 UNIT_PARAM_PREFIX = "unit__"
 SEED_CONSERVATIVE_RATIO = 0.35
 CONFLICTING_HORN_WINDOW_RATIO = 0.80
+DEFAULT_FIXED_SOURCE_VELOCITY = 1.0
+OSSE_VARIABLE_BOUNDS: dict[str, tuple[float, float]] = {
+    "ath_overrides.Term.s": (0.50, 0.85),
+    "ath_overrides.Term.q": (0.96, 0.999),
+    "ath_overrides.Term.n": (3.0, 6.0),
+    "ath_overrides.OS.k": (0.80, 1.25),
+}
+OSSE_DEFAULT_VALUES: dict[str, float] = {
+    "ath_overrides.Term.s": 0.7,
+    "ath_overrides.Term.q": 0.995,
+    "ath_overrides.Term.n": 4.0,
+    "ath_overrides.OS.k": 1.0,
+}
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -94,6 +106,45 @@ def _default_source_mode(profile: DriverProfile, base_recipe: DesignRecipe) -> s
         return source_mode or "axial"
     source_mode = str(base_recipe.source_mode).strip().lower()
     return source_mode or "normal"
+
+
+def _fixed_source_velocity(base_recipe: DesignRecipe) -> float:
+    """Return the fixed study source gain used by the current optimizer stage."""
+    velocity = float(base_recipe.source_velocity) if float(base_recipe.source_velocity) > 0.0 else DEFAULT_FIXED_SOURCE_VELOCITY
+    return velocity
+
+
+def _default_osse_seed_values() -> dict[str, float]:
+    """Return the stable OS-SE core defaults used by the first-stage optimizer."""
+    return dict(OSSE_DEFAULT_VALUES)
+
+
+def _baseline_mouth_geometry(
+    driver_profile: DriverProfile,
+    product_constraints: ProductConstraints,
+) -> tuple[float, float, float]:
+    """Build a conservative fixed mouth geometry for baseline recipes only."""
+    derived = derive_driver_constraints(driver_profile, product_constraints)
+    throat = derived.fixed_throat_diameter_mm if derived.fixed_throat_diameter_mm is not None else 25.4
+    mouth_width_low, mouth_width_high = _coerce_bounds(
+        derived.min_mouth_width_mm,
+        derived.max_mouth_width_mm,
+        fallback_low=max(DEFAULT_WIDTH_FLOOR_MM, throat * driver_profile.preferred_min_mouth_to_throat_ratio),
+        fallback_high=max(DEFAULT_WIDTH_FLOOR_MM * 1.5, throat * driver_profile.preferred_min_mouth_to_throat_ratio * 1.8),
+    )
+    mouth_height_low, mouth_height_high = _coerce_bounds(
+        derived.min_mouth_height_mm,
+        derived.max_mouth_height_mm,
+        fallback_low=max(DEFAULT_HEIGHT_FLOOR_MM, throat * driver_profile.preferred_min_mouth_to_throat_ratio),
+        fallback_high=max(DEFAULT_HEIGHT_FLOOR_MM * 1.5, throat * driver_profile.preferred_min_mouth_to_throat_ratio * 1.8),
+    )
+    mouth_width = _safe_mid(mouth_width_low, mouth_width_high, SEED_CONSERVATIVE_RATIO)
+    mouth_height = _safe_mid(mouth_height_low, mouth_height_high, SEED_CONSERVATIVE_RATIO)
+    corner_limit = max(0.0, min(mouth_width, mouth_height) * 0.5)
+    if derived.max_corner_radius_mm is not None:
+        corner_limit = min(corner_limit, float(derived.max_corner_radius_mm))
+    corner_radius = min(max(4.0, min(mouth_width, mouth_height) * 0.12), corner_limit * 0.6 if corner_limit > 0.0 else 0.0)
+    return (mouth_width, mouth_height, max(0.0, corner_radius))
 
 
 def _coverage_bounds(
@@ -334,22 +385,18 @@ class DesignSpace:
 def build_initial_seed_params(
     driver_profile: DriverProfile,
     product_constraints: ProductConstraints,
+    *,
+    base_recipe: DesignRecipe | None = None,
 ) -> dict[str, Any]:
-    """Build a conservative initial seed inside the inferred feasible region."""
+    """Build a conservative seed for the active optimizer variables only.
+
+    This stage intentionally keeps BEM setup, flare family selection, guiding
+    curves, and mouth morphing outside the search space. The seed therefore
+    includes only the active core geometry, OS-SE throat-profile terms via
+    `ath_overrides.*`, and fixed source fields.
+    """
     derived = derive_driver_constraints(driver_profile, product_constraints)
     throat = derived.fixed_throat_diameter_mm if derived.fixed_throat_diameter_mm is not None else 25.4
-    mouth_width_low, mouth_width_high = _coerce_bounds(
-        derived.min_mouth_width_mm,
-        derived.max_mouth_width_mm,
-        fallback_low=max(DEFAULT_WIDTH_FLOOR_MM, throat * driver_profile.preferred_min_mouth_to_throat_ratio),
-        fallback_high=max(DEFAULT_WIDTH_FLOOR_MM * 1.5, throat * driver_profile.preferred_min_mouth_to_throat_ratio * 1.8),
-    )
-    mouth_height_low, mouth_height_high = _coerce_bounds(
-        derived.min_mouth_height_mm,
-        derived.max_mouth_height_mm,
-        fallback_low=max(DEFAULT_HEIGHT_FLOOR_MM, throat * driver_profile.preferred_min_mouth_to_throat_ratio),
-        fallback_high=max(DEFAULT_HEIGHT_FLOOR_MM * 1.5, throat * driver_profile.preferred_min_mouth_to_throat_ratio * 1.8),
-    )
     horn_length_low, horn_length_high = _coerce_bounds(
         derived.min_horn_length_mm,
         derived.max_horn_length_mm,
@@ -367,23 +414,15 @@ def build_initial_seed_params(
             if recommended is not None:
                 coverage_candidates.append(_safe_mid(recommended[0], recommended[1]))
     coverage = sum(coverage_candidates) / len(coverage_candidates) if coverage_candidates else DEFAULT_COVERAGE_CENTER_DEG
-
-    mouth_width = _safe_mid(mouth_width_low, mouth_width_high, SEED_CONSERVATIVE_RATIO)
-    mouth_height = _safe_mid(mouth_height_low, mouth_height_high, SEED_CONSERVATIVE_RATIO)
-    corner_limit = max(0.0, min(mouth_width, mouth_height) * 0.5)
-    if derived.max_corner_radius_mm is not None:
-        corner_limit = min(corner_limit, float(derived.max_corner_radius_mm))
-    corner_radius = min(max(4.0, min(mouth_width, mouth_height) * 0.12), corner_limit * 0.6 if corner_limit > 0.0 else 0.0)
+    effective_base = base_recipe or DesignRecipe()
 
     return {
         "throat_diameter": throat,
         "horn_length": _safe_mid(horn_length_low, horn_length_high, 0.50),
         "coverage_angle": coverage,
-        "mouth_width": mouth_width,
-        "mouth_height": mouth_height,
-        "mouth_corner_radius": max(0.0, corner_radius),
         "source_mode": "normal" if driver_profile.driver_type == "compression_driver" else "axial",
-        "source_velocity": 1.0,
+        "source_velocity": _fixed_source_velocity(effective_base),
+        **_default_osse_seed_values(),
     }
 
 
@@ -393,16 +432,23 @@ def build_default_baseline_recipe(
 ) -> DesignRecipe:
     """Build a baseline `DesignRecipe` from driver/product inputs only."""
     params = build_initial_seed_params(driver_profile, product_constraints)
+    mouth_width, mouth_height, corner_radius = _baseline_mouth_geometry(driver_profile, product_constraints)
     recipe = DesignRecipe(
         case_name=f"{driver_profile.driver_id}_baseline",
         throat_diameter=float(params["throat_diameter"]),
         horn_length=float(params["horn_length"]),
         coverage_angle=float(params["coverage_angle"]),
-        mouth_width=float(params["mouth_width"]),
-        mouth_height=float(params["mouth_height"]),
-        mouth_corner_radius=float(params["mouth_corner_radius"]),
+        mouth_width=float(mouth_width),
+        mouth_height=float(mouth_height),
+        mouth_corner_radius=float(corner_radius),
         source_mode=str(params["source_mode"]),
         source_velocity=float(params["source_velocity"]),
+        ath_overrides={
+            "Term.s": float(params["ath_overrides.Term.s"]),
+            "Term.q": float(params["ath_overrides.Term.q"]),
+            "Term.n": float(params["ath_overrides.Term.n"]),
+            "OS.k": float(params["ath_overrides.OS.k"]),
+        },
     )
     recipe.assert_valid()
     return recipe
@@ -413,10 +459,19 @@ def build_design_space(
     product_constraints: ProductConstraints,
     base_recipe: DesignRecipe | None = None,
 ) -> DesignSpace:
-    """Build a driver-constrained design space compatible with `DesignRecipe`."""
+    """Build the active geometry-only design space for the current optimizer.
+
+    v1.1.08 keeps BEM environment, flare family selection, guiding-curve modes,
+    and mouth morphing out of the search space on purpose. The optimizer only
+    searches core geometry while all evaluation conditions stay fixed in the
+    base recipe / study environment.
+    """
     effective_base = base_recipe or build_default_baseline_recipe(driver_profile, product_constraints)
     derived = derive_driver_constraints(driver_profile, product_constraints)
     notes = list(derived.notes)
+    notes.append("BEM frequency band, observation plane, mic distance, and symmetry remain fixed study environment settings.")
+    notes.append("OS-SE optimizer v1 only exposes core Term.s/Term.q/Term.n/OS.k parameters via ath_overrides.*.")
+    notes.append("Flare family, GCurve, superellipse, superformula, and Morph variables are reserved for future modes and are excluded from this design space.")
     variables: dict[str, DesignVariable] = {}
 
     if derived.fixed_throat_diameter_mm is not None:
@@ -446,7 +501,7 @@ def build_design_space(
         name="source_mode",
         kind="fixed",
         fixed_value=_default_source_mode(driver_profile, effective_base),
-        metadata={"reason": "driver_type"},
+        metadata={"reason": "fixed_study_source_mode"},
     )
 
     horn_low, horn_high = _coerce_bounds(
@@ -493,65 +548,24 @@ def build_design_space(
         metadata={"bounds_source": "derived_or_target"},
     )
 
-    width_fallback = _range_around(effective_base.mouth_width if effective_base.mouth_width > 0.0 else 250.0, min_floor=80.0, low_factor=0.70, high_factor=1.25)
-    height_fallback = _range_around(effective_base.mouth_height if effective_base.mouth_height > 0.0 else 180.0, min_floor=60.0, low_factor=0.70, high_factor=1.25)
-    width_low, width_high = _coerce_bounds(
-        derived.min_mouth_width_mm,
-        derived.max_mouth_width_mm,
-        fallback_low=max(DEFAULT_WIDTH_FLOOR_MM, width_fallback[0]),
-        fallback_high=min(DEFAULT_MAX_MOUTH_DIM_MM, width_fallback[1]),
-    )
-    height_low, height_high = _coerce_bounds(
-        derived.min_mouth_height_mm,
-        derived.max_mouth_height_mm,
-        fallback_low=max(DEFAULT_HEIGHT_FLOOR_MM, height_fallback[0]),
-        fallback_high=min(DEFAULT_MAX_MOUTH_DIM_MM, height_fallback[1]),
-    )
-    mouth_shape = str(effective_base.mouth_shape).strip().lower()
-    mouth_vars_active = mouth_shape != "keep"
-    variables["mouth_width"] = _build_variable(
-        name="mouth_width",
-        kind="float",
-        low=width_low,
-        high=width_high,
-        active=mouth_vars_active,
-        metadata={"bounds_source": "derived_or_product", "activation": f"mouth_shape={mouth_shape}"},
-    )
-    variables["mouth_height"] = _build_variable(
-        name="mouth_height",
-        kind="float",
-        low=height_low,
-        high=height_high,
-        active=mouth_vars_active,
-        metadata={"bounds_source": "derived_or_product", "activation": f"mouth_shape={mouth_shape}"},
-    )
+    for name, (low, high) in OSSE_VARIABLE_BOUNDS.items():
+        variables[name] = _build_variable(
+            name=name,
+            kind="float",
+            low=float(low),
+            high=float(high),
+            metadata={
+                "bounds_source": "osse_v1_defaults",
+                "mode": "osse_only_first_stage",
+                "reason": "OS-SE throat profile core term",
+            },
+        )
 
-    corner_high = min(width_high, height_high) * 0.5
-    if derived.max_corner_radius_mm is not None:
-        corner_high = min(corner_high, float(derived.max_corner_radius_mm))
-    corner_high = max(0.0, corner_high)
-    variables["mouth_corner_radius"] = _build_variable(
-        name="mouth_corner_radius",
-        kind="float",
-        low=0.0,
-        high=max(DEFAULT_CORNER_RADIUS_MM, corner_high),
-        active=mouth_vars_active,
-        metadata={"bounds_source": "derived_from_mouth"},
-    )
-
-    velocity_low, velocity_high = _range_around(
-        effective_base.source_velocity if effective_base.source_velocity > 0.0 else 1.0,
-        min_floor=DEFAULT_SOURCE_VELOCITY_RANGE[0],
-        low_factor=0.50,
-        high_factor=1.80,
-        hard_cap=DEFAULT_SOURCE_VELOCITY_RANGE[1],
-    )
     variables["source_velocity"] = _build_variable(
         name="source_velocity",
-        kind="float",
-        low=velocity_low,
-        high=velocity_high,
-        metadata={"bounds_source": "base_recipe_fallback"},
+        kind="fixed",
+        fixed_value=_fixed_source_velocity(effective_base),
+        metadata={"reason": "fixed_study_source_gain"},
     )
 
     return DesignSpace(

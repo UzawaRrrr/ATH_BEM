@@ -240,7 +240,11 @@ def coverage_error(
     target_bw_deg: float | None = None,
     p: float = 2.0,
 ) -> float:
-    """Compute coverage error either from target curves or from beamwidth tracking."""
+    """Compute the primary coverage objective over the full evaluation band.
+
+    The scorer can operate either in target-matrix mode or in beamwidth-tracking
+    mode. In both cases this term remains the main band-wide optimization target.
+    """
     if norm_spl_db is not None and target_norm_spl_db is not None:
         matrix = np.asarray(norm_spl_db, dtype=float)
         effective_angle_mask = (
@@ -262,7 +266,11 @@ def constant_directivity_error(
     angle_mask: np.ndarray | None = None,
     detrend_kind: str = "linear_logf",
 ) -> float:
-    """Measure how frequency-invariant each off-axis curve remains within a band."""
+    """Measure how frequency-invariant each off-axis curve remains within a band.
+
+    This remains available as a small guardrail term, but it is intentionally no
+    longer treated as the primary optimization direction.
+    """
     freqs = _ensure_1d(freqs_hz, name="freqs_hz", positive_only=True)
     matrix = np.asarray(norm_spl_db, dtype=float)
     if matrix.ndim != 2 or matrix.shape[1] != freqs.size:
@@ -591,7 +599,12 @@ def di_smoothness_error(
     beamwidth_deg: np.ndarray | None = None,
     beamwidth_smoothness_eta: float = 0.35,
 ) -> float:
-    """Measure DI smoothness and optionally beamwidth smoothness in log-frequency."""
+    """Measure DI smoothness and optionally beamwidth smoothness in log-frequency.
+
+    This is a smoothness helper, not an absolute DI-target fitting term. It is
+    intended to penalize jittery DI / beamwidth behavior without forcing a rigid
+    high-frequency constant-directivity template.
+    """
     di_term = _second_difference_rms_curve(di_db, freqs_hz, freq_mask=freq_mask, use_log_frequency=True)
     bw_term = _second_difference_rms_curve(
         beamwidth_deg,

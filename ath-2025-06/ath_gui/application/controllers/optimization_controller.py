@@ -408,7 +408,10 @@ class OptimizationController:
             self._completed_best_trial_summary = dict(summary)
             self.app.after(0, lambda: self._apply_final_success(result.study.study_name, result.study.best_value))
         except Exception as exc:
-            self.app.after(0, lambda: self._apply_final_error(exc))
+            # Capture the exception object eagerly for Tk's deferred callback.
+            # Python 3.13 clears `exc` at the end of the except block, so a
+            # plain closure here can raise NameError later inside `after()`.
+            self.app.after(0, lambda error=exc: self._apply_final_error(error))
         finally:
             self._stop_after_trial.clear()
             with self._lock:

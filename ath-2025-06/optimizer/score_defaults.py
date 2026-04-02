@@ -10,12 +10,15 @@ from .score_types import HomProxyWeights, ObjectiveConfig, ScoreWeights
 DEFAULT_SCORE_WEIGHTS = ScoreWeights(
     w_hard=1.0,
     w_cov=1.0,
-    w_cd=0.9,
-    w_hom=1.2,
-    w_room=0.5,
-    w_di=0.4,
-    w_load=0.2,
-    w_geom=0.3,
+    # Coverage remains the dominant optimization target.
+    w_cd=0.15,
+    # HOM/room/load/geom stay as guardrails, not the main search direction.
+    w_hom=0.5,
+    w_room=0.3,
+    # DI is a smoothness helper, not an absolute target template.
+    w_di=0.35,
+    w_load=0.15,
+    w_geom=0.25,
 )
 
 DEFAULT_HOM_PROXY_WEIGHTS = HomProxyWeights(
@@ -41,7 +44,9 @@ DEFAULT_STAGE_FACTORS: dict[str, dict[str, float]] = {
     "coarse": {
         "hard": 1.0,
         "coverage": 1.0,
-        "cd": 0.35,
+        # Coarse stage searches for viable coverage first. Do not let
+        # constant-directivity or smoothness terms dominate early exploration.
+        "cd": 0.0,
         "hom": 0.0,
         "room": 0.0,
         "di": 0.0,
@@ -51,22 +56,26 @@ DEFAULT_STAGE_FACTORS: dict[str, dict[str, float]] = {
     "refine": {
         "hard": 1.0,
         "coverage": 1.0,
-        "cd": 1.0,
-        "hom": 1.0,
-        "room": 0.5,
-        "di": 0.0,
+        # Refine keeps coverage in charge while introducing a modest DI
+        # smoothness helper and only a very small CD guardrail.
+        "cd": 0.15,
+        "hom": 0.3,
+        "room": 0.2,
+        "di": 0.5,
         "load": 0.0,
         "geom": 0.0,
     },
     "final": {
         "hard": 1.0,
         "coverage": 1.0,
-        "cd": 1.0,
-        "hom": 1.0,
-        "room": 1.0,
+        # Final stage keeps a small constant-directivity guardrail, but the
+        # main objective remains band-wide coverage with DI smoothness support.
+        "cd": 0.25,
+        "hom": 0.6,
+        "room": 0.5,
         "di": 1.0,
-        "load": 1.0,
-        "geom": 1.0,
+        "load": 0.35,
+        "geom": 0.35,
     },
 }
 

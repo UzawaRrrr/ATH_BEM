@@ -599,6 +599,7 @@ def evaluate_objective(
     if beamwidth_6_v is not None and np.any(np.isfinite(beamwidth_6_v)):
         details["beamwidth_6_v.mean"] = float(np.nanmean(beamwidth_6_v))
 
+    # Coverage tracking across the requested band is the main optimization term.
     coverage_terms: list[float] = []
     coverage_raw_terms: list[float] = []
     if polar.has_horizontal:
@@ -666,6 +667,8 @@ def evaluate_objective(
     coverage_score = float(np.mean(coverage_terms)) if coverage_terms else 0.0
     details["coverage.raw_mean"] = float(np.mean(coverage_raw_terms)) if coverage_raw_terms else 0.0
 
+    # Constant-directivity is kept as a light guardrail only; it should not
+    # dominate the search direction in coarse/refine stages.
     cd_terms: list[float] = []
     if polar.has_horizontal:
         raw = _metric_with_fallback(
@@ -812,6 +815,8 @@ def evaluate_objective(
     room_score = normalize_component_value(room_raw, config.component_normalizers.get("room_db", 1.0))
     details["room.raw"] = room_raw
 
+    # DI contributes as a smoothness helper, optionally informed by beamwidth
+    # smoothness, rather than as a hard absolute target template.
     di_curve = _estimate_di_curve(polar, beamwidth_6_h, beamwidth_6_v, warnings, flags)
     beamwidth_mean = _average_available([beamwidth_6_h, beamwidth_6_v])
     di_raw = _metric_with_fallback(
