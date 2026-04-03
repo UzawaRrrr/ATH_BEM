@@ -1,8 +1,11 @@
 # Python virtual environments
 venv/
 .venv/
+.venv*/
 env/
+venv*/
 .env/
+.env
 
 # Python cache/temp
 __pycache__/
@@ -16,9 +19,30 @@ ath-2025-06/_symmetry_smoke/_tmp_full_rebuild/
 ath-2025-06/_symmetry_smoke/full_rebuild/
 
 # ATH/BEM generated workspaces and optimization outputs
-ath-2025-06/projects/*/latest_workspace.txt
-ath-2025-06/projects/*/runs/
+ath-2025-06/projects/**
+!ath-2025-06/projects/
+!ath-2025-06/projects/*.json
+ath-2025-06/_symmetry_smoke/
+ath-2025-06/_tmp_diag/
+ath-2025-06/_tmp_plot_quality/
+ath-2025-06/athpreview/test/
+ath-2025-06/athpreview/_preview_test/
+Autima_1/
+Autima_1_5/
+Autima_1_75/
+Autima_1_8/
+Tritonia-M/
+bempp/
+test/
+generated/
+logs/
 optresult/
+temp/
+tmp/
+
+# Local machine config
+config/toolchain.local.json
+config/machine.local.json
 
 # Generated mesh/build artifacts written into shared config folders
 config/ABEC_FreeStanding/bem_mesh.geo

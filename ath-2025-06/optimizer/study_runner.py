@@ -11,6 +11,7 @@ from typing import Any, Callable
 import optuna
 
 from ath_gui.domain.design_recipe import DesignRecipe
+from ath_gui.domain.specs import STUDIES_ROOT
 
 from .design_space import DesignSpace, build_design_space, build_initial_seed_params
 from .conflict_policy import build_preflight_flags, resolve_conflict_policy
@@ -385,7 +386,7 @@ def run_optuna_study(
     )
 
     study_name = str(config.study_name).strip() or f"{base_recipe.case_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    study_dir = (config.study_dir or (Path(__file__).resolve().parents[1] / "projects" / "optuna" / study_name)).resolve()
+    study_dir = (config.study_dir or (STUDIES_ROOT / "optuna" / study_name)).resolve()
     sampler = optuna.samplers.TPESampler(seed=int(config.seed))
     storage = None if config.storage is None else (str(config.storage).strip() or None)
     study = optuna.create_study(

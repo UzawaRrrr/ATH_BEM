@@ -11,11 +11,12 @@ from pathlib import Path
 from typing import TextIO
 
 from ..domain.specs import ROOT_DIR
+from ..domain.runtime import RUNTIME_LAYOUT
 
 
-DEFAULT_WSL_VENV = "~/venvs/bempp-wsl"
+DEFAULT_WSL_VENV = RUNTIME_LAYOUT.default_wsl_venv
 DEFAULT_WSL_SOLVER_ROOT = "~/bem_solver"
-DEFAULT_WSL_SOLVER_ENTRY = "~/bem_solver/solver_cli.py"
+DEFAULT_WSL_SOLVER_ENTRY = RUNTIME_LAYOUT.default_wsl_solver_entry
 
 
 @dataclass

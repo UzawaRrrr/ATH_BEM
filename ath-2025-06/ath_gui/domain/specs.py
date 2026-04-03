@@ -3,23 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .runtime import RUNTIME_LAYOUT
+
 
 APP_TITLE = "ATH 波導設定工作台"
 
-
-def _resolve_root_dir() -> Path:
-    """Resolve ATH project root robustly across layered module locations."""
-    here = Path(__file__).resolve()
-    for candidate in here.parents:
-        if (candidate / "ath.exe").exists() and (candidate / "ath_gui").exists():
-            return candidate
-    # Fallback for development copies; keeps previous behavior predictable.
-    return here.parents[2]
-
-
-ROOT_DIR = _resolve_root_dir()
-ATH_EXE = ROOT_DIR / "ath.exe"
-ATH_GLOBAL_CONFIG = ROOT_DIR / "ath.cfg"
+REPO_ROOT = RUNTIME_LAYOUT.repo_root
+ROOT_DIR = RUNTIME_LAYOUT.app_root
+ATH_EXE = RUNTIME_LAYOUT.ath_exe
+ATH_RUNTIME_DIR = RUNTIME_LAYOUT.ath_runtime_dir
+ATH_GLOBAL_CONFIG = RUNTIME_LAYOUT.ath_global_config
+WORKSPACE_ROOT = RUNTIME_LAYOUT.workspace_root
+PROJECTS_ROOT = RUNTIME_LAYOUT.projects_root
+STUDIES_ROOT = RUNTIME_LAYOUT.studies_root
+LOGS_ROOT = RUNTIME_LAYOUT.logs_root
+TEMP_ROOT = RUNTIME_LAYOUT.temp_root
 
 BG = "#0b1220"
 CARD = "#121b2b"

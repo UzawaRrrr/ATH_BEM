@@ -2,6 +2,104 @@
 
 用於設計與模擬**聲學蛇皭和導波器**的完整工程軟體。提供圖形化配置界面、實時 3D 預覽，以及高效的邊界元素法 (BEM) 聲學求解器。
 
+## Repo Role
+
+這個專案現在開始往下列結構收斂：
+
+- `source repo`
+- `bootstrap scripts`
+- `local machine config`
+- `external workspace`
+
+repo 內應保留：
+
+- 原始碼
+- 設定範本
+- 啟動入口
+- 文件
+- bootstrap / doctor 腳本
+
+clone 到另一台機器後，建議流程是：
+
+```powershell
+pwsh ./scripts/bootstrap/bootstrap_windows.ps1 -InitLocalConfig
+python -m ath_bem doctor windows --run-self-test
+python -m ath_bem gui --self-test
+```
+
+WSL solver 端則使用：
+
+```bash
+./scripts/bootstrap/bootstrap_wsl.sh
+~/venvs/bempp-wsl/bin/python -m ath_bem doctor wsl --venv ~/venvs/bempp-wsl --check-solver-cli
+```
+
+本機路徑請寫在：
+
+- `config/toolchain.local.json`
+- `.env`
+
+範本見：
+
+- `config/toolchain.local.json.example`
+- `.env.example`
+
+第一階段結構說明見：
+
+- `docs/repo-structure-phase1.md`
+- `docs/workspace.md`
+- `docs/entrypoints.md`
+- `docs/remote-clone-quickstart.md`
+- `docs/current-limitations.md`
+- `docs/future-extraction.md`
+
+## Bootstrap Overview
+
+Windows 端 bootstrap 會做這些事：
+
+- 建立 repo 本機 `.venv`
+- 安裝 GUI / orchestration 依賴
+- 可選建立 `config/toolchain.local.json`
+- 可選建立 `.env`
+- 執行 runtime doctor 與 Windows env doctor
+
+WSL 端 bootstrap 會做這些事：
+
+- 建立 solver venv
+- 安裝 `bempp-cl`、mesh / scientific stack
+- 驗證 `bem_solver/solver_cli.py --help`
+
+依賴清單：
+
+- [requirements-win.txt](d:/python/ATH_BEM/requirements-win.txt)
+- [requirements-wsl.txt](d:/python/ATH_BEM/requirements-wsl.txt)
+
+常用驗證工具：
+
+- [doctor_runtime.py](d:/python/ATH_BEM/scripts/doctor/doctor_runtime.py)
+- [check_windows_env.py](d:/python/ATH_BEM/scripts/doctor/check_windows_env.py)
+- [check_wsl_env.py](d:/python/ATH_BEM/scripts/doctor/check_wsl_env.py)
+- legacy: [check_optimizer_env.py](d:/python/ATH_BEM/ath-2025-06/scripts/check_optimizer_env.py)
+
+## 標準啟動入口
+
+完成 bootstrap 後，建議一律從 repo root 啟動：
+
+```powershell
+python -m ath_bem gui
+python -m ath_bem optimizer --recipe ath-2025-06/projects/optuna_smoke_recipe3.json --trials 1
+python -m ath_bem doctor runtime
+```
+
+Windows wrapper 仍可用：
+
+```powershell
+ath-2025-06\run_ath_gui.bat
+pwsh ./scripts/launch_gui.ps1
+```
+
+更完整說明見 [entrypoints.md](d:/python/ATH_BEM/docs/entrypoints.md)。
+
 ## 核心功能
 - 🎨 **視覺化配置**：直觀的 GUI（支持中文）編輯蛇皭幾何、邊界條件和網格
 - 🔍 **實時預覽**：基於 VTK 的 3D 模型與網格即時可視化
@@ -34,7 +132,7 @@ ath-2025-06/                    # 主應用目錄
 ├── doc/                       # 文件與配置範例 (Autima_*.cfg)
 └── export/                    # 匯出腳本
 
-其他目錄 (Autima_*/, bempp/)  # 數據儲存與計算結果
+其他目錄 (`Autima_*`, `bempp/`)  # 目前仍留在 repo 的 legacy artifacts，新的輸出不應再寫回這裡
 ```
 
 ## 架構特色
@@ -55,9 +153,20 @@ ath-2025-06/                    # 主應用目錄
 - 在既有 `BEM` 分頁工具列新增 `Run All 一鍵流程`。
 - `Run All` 會自動執行：`ATH -> mesh inspect -> group auto mapping -> BEM -> result loading`。
 - 每次執行會建立可回溯 workspace：
-  - `ath-2025-06/projects/<case>/runs/<run_id>/input|ath|bempp|meta`
+  - `<workspace_root>/projects/<case>/runs/<run_id>/input|ath|bempp|meta`
 - 你可維持原本欄位填寫習慣，不需要切換到額外模式。
 - 舊手動流程（`Run ATH / Inspect Mesh / Run BEM / Reload Results`）維持不變。
+
+## Repo 與 Workspace
+
+- repo 是 source tree，可以 clone 到任何路徑。
+- workspace 是外部可寫資料根目錄，專門放 `projects`、`studies`、`logs`、`temp`。
+- 預設 `workspace_root` 不再落在 repo 內。
+  - Windows: `%LOCALAPPDATA%\\ATH_BEM\\workspace`
+  - Linux / WSL: `${XDG_DATA_HOME:-~/.local/share}/ath_bem/workspace`
+- 你也可以在 `config/toolchain.local.json` 或 `.env` 覆寫 `workspace_root`。
+
+完整說明見 [workspace.md](d:/python/ATH_BEM/docs/workspace.md)。
 
 ## Optuna Objective Scoring Layer
 
@@ -219,8 +328,7 @@ python -m optimizer.demo --mode study
 可先用 doctor 檢查環境：
 
 ```bash
-cd ath-2025-06
-..\.venv\Scripts\python.exe scripts/check_optimizer_env.py
+python -m ath_bem doctor optimizer
 ```
 
 若 doctor 顯示 `Recommended topology: hybrid`，就表示建議的最佳化環境已就緒。
@@ -230,28 +338,44 @@ cd ath-2025-06
 - `optimizer.headless_case_runner.HeadlessCaseRunner`
   - 重用既有 `ATH -> mesh inspect -> group mapping -> BEM` 流程
   - 回傳 `CaseResult`
-  - 會在 workspace `bempp/` 根目錄輸出合併後的 `optimizer_payload.npz` / `optimizer_status.json`
+  - 會在每次 run 的 `bempp/` 目錄輸出合併後的 `optimizer_payload.npz` / `optimizer_status.json`
+- `python -m ath_bem optimizer`
+  - repo root 的正式 CLI 入口
+- `python -m optimizer`
+  - `ath-2025-06/` 內的 package-style 相容入口
 - `scripts/run_optuna.py`
-  - 正式 CLI 入口
+  - legacy 相容 wrapper
   - 會建立 study、呼叫 headless runner、寫出 `best_trial.json` 與 `trials.json`
 - `optimizer.study_runner`
   - CLI 與 GUI 共用的 study orchestration service
-  - 統一處理 Optuna sampler、trial event、study artifact 落地
+  - 統一處理 Optuna sampler、trial event、study artifact 落地到 `<workspace_root>/studies/optuna/...`
 
 如果 `design_recipe.json` 只是高階 recipe，而完整幾何細節存在某份已驗證的 `horn.cfg`，請把那份 `horn.cfg` 當 base template 傳入。這很重要，因為 `DesignRecipe` 只覆蓋部分 ATH 欄位，最佳化通常應該在一份「已知可生成幾何」的 base horn state 上做相對調整。
 
 最小實跑範例：
 
 ```bash
-cd ath-2025-06
-..\.venv\Scripts\python.exe scripts/run_optuna.py ^
-  --recipe projects/optuna_smoke_recipe3.json ^
-  --base-horn-cfg projects/config/runs/20260330_043549/input/horn.cfg ^
+python -m ath_bem optimizer ^
+  --recipe ath-2025-06/projects/optuna_smoke_recipe3.json ^
+  --base-horn-cfg <workspace_root>/projects/config/runs/<run_id>/input/horn.cfg ^
   --trials 1 ^
   --stage coarse ^
   --planes XZ ^
   --study-name optuna_cli_smoke ^
-  --study-dir projects/optuna_cli_smoke_artifacts
+  --study-dir <workspace_root>/studies/optuna/optuna_cli_smoke
+```
+
+若你已切到 `ath-2025-06/` 目錄，也可以：
+
+```bash
+python -m optimizer ^
+  --recipe projects/optuna_smoke_recipe3.json ^
+  --base-horn-cfg <workspace_root>/projects/config/runs/<run_id>/input/horn.cfg ^
+  --trials 1 ^
+  --stage coarse ^
+  --planes XZ ^
+  --study-name optuna_cli_smoke ^
+  --study-dir <workspace_root>/studies/optuna/optuna_cli_smoke
 ```
 
 實務上正式最佳化時，通常建議：
@@ -301,9 +425,9 @@ cd ath-2025-06
 
 ```bash
 # 啟動 GUI
-python ath-2025-06/ath_config_gui.py
+python -m ath_bem gui
 # 或
-.\run_ath_gui.bat
+ath-2025-06\run_ath_gui.bat
 ```
 
 1. 加載範例配置（doc/Autima_*.cfg）

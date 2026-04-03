@@ -25,7 +25,8 @@ from ath_gui.domain.config_core import (
     sanitize_ath_state,
 )
 from ath_gui.domain.design_recipe import DesignRecipe
-from ath_gui.domain.specs import ATH_EXE, ATH_GLOBAL_CONFIG, ROOT_DIR
+from ath_gui.domain.specs import ATH_EXE, ATH_GLOBAL_CONFIG, ATH_RUNTIME_DIR, ROOT_DIR
+from ath_gui.domain.runtime import RUNTIME_LAYOUT
 from ath_gui.infrastructure.bem_bridge import start_bem_solver, windows_path_to_wsl
 from ath_gui.infrastructure.bem_mesh import find_generated_mesh_file, inspect_mesh_file
 from ath_gui.infrastructure.bem_state import (
@@ -113,8 +114,8 @@ class HeadlessCaseRunner:
     projects_root: Path | None = None
     planes: tuple[str, ...] = ("XZ", "YZ")
     backend: str = "wsl"
-    wsl_venv: str = "~/venvs/bempp-wsl"
-    wsl_solver_entry: str = "~/bem_solver/solver_cli.py"
+    wsl_venv: str = RUNTIME_LAYOUT.default_wsl_venv
+    wsl_solver_entry: str = RUNTIME_LAYOUT.default_wsl_solver_entry
     local_solver_python: str = ""
     conda_exe: str = "conda"
     conda_env: str = "bempp"
@@ -378,7 +379,7 @@ class HeadlessCaseRunner:
             with log_path.open("w", encoding="utf-8", newline="\n") as log_handle:
                 process = subprocess.Popen(
                     [str(ATH_EXE), str(workspace.horn_cfg_path)],
-                    cwd=str(ROOT_DIR),
+                    cwd=str(ATH_RUNTIME_DIR),
                     stdout=log_handle,
                     stderr=subprocess.STDOUT,
                     text=True,

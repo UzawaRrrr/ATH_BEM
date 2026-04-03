@@ -16,7 +16,7 @@ from .domain.config_core import (
     sanitize_state_by_rules,
 )
 from .domain.design_recipe import DesignRecipe
-from .domain.specs import ATH_EXE, QUICK_FIELD_SECTIONS, ROOT_DIR, SIMPLE_FIELD_SPECS
+from .domain.specs import ATH_EXE, ATH_GLOBAL_CONFIG, ATH_RUNTIME_DIR, QUICK_FIELD_SECTIONS, ROOT_DIR, SIMPLE_FIELD_SPECS, WORKSPACE_ROOT
 from .infrastructure.bem_bridge import build_bem_solver_command, expand_wsl_user_path, quote_bash_path, windows_path_to_wsl
 from .infrastructure.group_mapper import suggest_group_map
 from .infrastructure.project_workspace import create_workspace, latest_workspace_for_case, write_manifest
@@ -310,7 +310,10 @@ CustomThing = 42
     assert "source " not in bem_command
     assert "cp -r" not in bem_command
     assert "/ath-2025-06/bem_solver/solver_cli.py" in bem_command
-    assert ATH_EXE.exists()
+    assert ATH_EXE.name.lower() == "ath.exe"
+    assert ATH_GLOBAL_CONFIG.name.lower() == "ath.cfg"
+    assert ATH_RUNTIME_DIR.is_absolute()
+    assert WORKSPACE_ROOT.is_absolute()
     assert (ROOT_DIR / "bem_solver").exists()
 
     with tempfile.TemporaryDirectory() as temp_mesh_dir_name:

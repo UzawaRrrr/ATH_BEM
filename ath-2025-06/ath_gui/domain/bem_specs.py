@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .specs import FieldSpec
+from .runtime import RUNTIME_LAYOUT
 
 
 BEM_AUTOMATION_FIELDS = (
@@ -53,8 +54,8 @@ BEM_AUTOMATION_FIELDS = (
         choices=("polar_map", "custom_directivity"),
         hint="目前 solver 仍使用同一套觀測欄位；此欄位主要控制 Guided Setup 顯示與輸出偏好。",
     ),
-    FieldSpec("BEM.WslVenv", "WSL Python venv", default="~/venvs/bempp-wsl", width=52),
-    FieldSpec("BEM.WslSolverEntry", "WSL solver 入口", default="~/bem_solver/solver_cli.py", width=52),
+    FieldSpec("BEM.WslVenv", "WSL Python venv", default=RUNTIME_LAYOUT.default_wsl_venv, width=52),
+    FieldSpec("BEM.WslSolverEntry", "WSL solver 入口", default=RUNTIME_LAYOUT.default_wsl_solver_entry, width=52),
     FieldSpec("BEM.LocalPythonExe", "本機 Python", browse="file", width=52),
     FieldSpec("BEM.CondaExe", "Conda 執行檔", default="conda", browse="file", width=52),
     FieldSpec("BEM.CondaEnv", "Conda 環境名稱", default="bempp", width=32),

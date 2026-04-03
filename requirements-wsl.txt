@@ -1,0 +1,7 @@
+# WSL BEM solver environment
+bempp-cl==0.4.2
+numpy==2.4.4
+scipy==1.17.1
+meshio==5.3.5
+matplotlib==3.10.8
+gmsh==4.15.2

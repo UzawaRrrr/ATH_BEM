@@ -1,0 +1,2 @@
+# Backward-compatible alias.
+-r requirements-win.txt

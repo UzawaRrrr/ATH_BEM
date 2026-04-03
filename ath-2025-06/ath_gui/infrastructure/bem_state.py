@@ -13,6 +13,7 @@ from ..domain.bem_specs import (
     BEM_GUIDED_RULES,
     BEM_SANITIZE_RESET_VALUES,
 )
+from ..domain.runtime import RUNTIME_LAYOUT
 from .group_mapper import mesh_family_key, suggest_group_map
 
 
@@ -165,8 +166,8 @@ def build_bem_runtime_settings(state: dict[str, object] | None, ath_state: dict[
         "requires_ath_mesh_output": bool(sanitized.get("BEM.Enabled", False)) and mesh_source_mode == "latest_ath_output",
         "launch_options": {
             "backend": backend,
-            "wsl_venv": str(sanitized.get("BEM.WslVenv", "")).strip() or "~/venvs/bempp-wsl",
-            "wsl_solver_entry": str(sanitized.get("BEM.WslSolverEntry", "")).strip() or "~/bem_solver/solver_cli.py",
+            "wsl_venv": str(sanitized.get("BEM.WslVenv", "")).strip() or RUNTIME_LAYOUT.default_wsl_venv,
+            "wsl_solver_entry": str(sanitized.get("BEM.WslSolverEntry", "")).strip() or RUNTIME_LAYOUT.default_wsl_solver_entry,
             "local_python_exe": str(sanitized.get("BEM.LocalPythonExe", "")).strip() or sys.executable,
             "conda_exe": str(sanitized.get("BEM.CondaExe", "")).strip() or "conda",
             "conda_env": str(sanitized.get("BEM.CondaEnv", "")).strip() or "bempp",

@@ -30,7 +30,7 @@ OPTIMIZER_STUDY_FIELDS = (
         "Optuna storage",
         default="",
         width=52,
-        hint="可選，例如 sqlite:///E:/pythonGATH/ath-2025-06/projects/optuna.db",
+        hint="可選，例如 sqlite:///C:/Users/<you>/AppData/Local/ATH_BEM/workspace/studies/optuna/optuna.db",
     ),
     FieldSpec("OPT.Seed", "Sampler seed", default="42"),
     FieldSpec("OPT.EnqueueBase", "先跑 base recipe", kind="check", default=True, emit_default=True),

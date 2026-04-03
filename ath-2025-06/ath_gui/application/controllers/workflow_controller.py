@@ -11,7 +11,7 @@ from tkinter import messagebox
 from typing import Any
 
 from ...domain.config_core import render_horn_text
-from ...domain.specs import APP_TITLE, ATH_EXE, ROOT_DIR
+from ...domain.specs import APP_TITLE, ATH_EXE, ATH_RUNTIME_DIR, ROOT_DIR
 from ...infrastructure.bem_bridge import start_bem_solver, windows_path_to_wsl
 from ...infrastructure.bem_mesh import format_mesh_info_text, inspect_mesh_file
 from ...infrastructure.bem_results import (
@@ -229,7 +229,7 @@ class WorkflowController:
         output_dir = compute_output_directory(global_state, horn_state, cfg_file)
         flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
         try:
-            self.app.ath_process = subprocess.Popen([str(ATH_EXE), cfg_path], cwd=str(ROOT_DIR), creationflags=flags)
+            self.app.ath_process = subprocess.Popen([str(ATH_EXE), cfg_path], cwd=str(ATH_RUNTIME_DIR), creationflags=flags)
         except OSError as exc:
             messagebox.showerror(APP_TITLE, f"啟動 ath.exe 失敗：\n{exc}")
             return

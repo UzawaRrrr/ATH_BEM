@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from ..domain.specs import PROJECTS_ROOT
+
 
 _RUN_STAMP_FMT = "%Y%m%d_%H%M%S"
 
@@ -69,7 +71,7 @@ def _build_workspace(case_name: str, case_key: str, run_root: Path, run_id: str)
 
 
 def create_workspace(case_name: str, *, projects_root: Path | None = None, run_id: str | None = None) -> ProjectWorkspace:
-    root = (projects_root or (Path(__file__).resolve().parents[2] / "projects")).resolve()
+    root = (projects_root or PROJECTS_ROOT).resolve()
     case_key = _sanitize_case_name(case_name)
     case_root = root / case_key
     runs_root = case_root / "runs"
@@ -113,7 +115,7 @@ def load_workspace(path: str | Path) -> ProjectWorkspace:
 
 
 def latest_workspace_for_case(case_name: str, *, projects_root: Path | None = None) -> ProjectWorkspace | None:
-    root = (projects_root or (Path(__file__).resolve().parents[2] / "projects")).resolve()
+    root = (projects_root or PROJECTS_ROOT).resolve()
     case_key = _sanitize_case_name(case_name)
     case_root = root / case_key
     pointer = case_root / "latest_workspace.txt"

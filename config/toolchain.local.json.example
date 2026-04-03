@@ -1,0 +1,12 @@
+{
+  "windows_venv": ".venv",
+  "python_exe": "",
+  "wsl_venv": "~/venvs/bempp-wsl",
+  "solver_path": "",
+  "ath_exe": "ath-2025-06/ath.exe",
+  "ath_runtime_dir": "ath-2025-06",
+  "ath_global_config": "ath-2025-06/ath.cfg",
+  "workspace_root": "",
+  "logs_root": "",
+  "temp_root": ""
+}

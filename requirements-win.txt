@@ -1,0 +1,8 @@
+# Windows orchestration / GUI environment
+numpy==2.4.4
+scipy==1.17.1
+meshio==5.3.5
+matplotlib==3.10.8
+vtk==9.6.1
+gmsh==4.15.2
+optuna==4.5.0
